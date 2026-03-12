@@ -4,8 +4,7 @@ from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import fitz  # PyMuPDF
 from pydantic import BaseModel
-from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_core.prompts import PromptTemplate
+from langchain_huggingface import HuggingFaceEndpoint
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -78,10 +77,11 @@ async def optimize_resumes(
     resume_backend: UploadFile = File(...),
     job_description: str = Form(...)
 ):
-    # Ensure Gemini API key is set
-    if not os.environ.get("GEMINI_API_KEY"):
-        raise HTTPException(status_code=500, detail="GEMINI_API_KEY is not set.")
-
+    # Ensure HF Token is set
+    hf_token = os.environ.get("HUGGINGFACEHUB_API_TOKEN")
+    if not hf_token:
+        raise HTTPException(status_code=500, detail="HUGGINGFACEHUB_API_TOKEN is not set in .env")
+        
     # Validate files
     if not resume_genai.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Gen AI resume must be a PDF file.")
@@ -104,28 +104,32 @@ async def optimize_resumes(
 --- Job Description ---
 {job_description}
 """
+    
+    # Qwen Instruct models respond best to explicit structural formatting boundaries
+    formatted_prompt = f"""<|im_start|>system
+{SYSTEM_PROMPT}<|im_end|>
+<|im_start|>user
+{user_message}<|im_end|>
+<|im_start|>assistant
+"""
 
     try:
-        # Initialize Gemini Model via LangChain
-        # Using gemini-2.5-flash since gemini-pro is legacy, but we can stick to modern models.
-        # Alternatively, using gemini-1.5-pro or gemini-2.0-flash.
-        llm = ChatGoogleGenerativeAI(
-            model="gemini-2.0-flash",
-            temperature=0.2,
-            max_tokens=8192,
-            timeout=120,
-            max_retries=2
+        # Initialize HuggingFace Endpoint for Qwen2.5-72B-Instruct
+        llm = HuggingFaceEndpoint(
+            repo_id="Qwen/Qwen2.5-72B-Instruct",
+            task="text-generation",
+            max_new_tokens=4096,
+            temperature=0.1,
+            do_sample=False,
+            huggingfacehub_api_token=hf_token
         )
 
-        messages = [
-            ("system", SYSTEM_PROMPT),
-            ("human", user_message)
-        ]
+        response = llm.invoke(formatted_prompt)
+        
+        # Clean up the response buffer from endpoint which returns raw appended text typically
+        content = str(response).strip()
 
-        response = llm.invoke(messages)
-        content = response.content.strip()
-
-        # Clean up possible markdown wrappers if the model didn't follow "ONLY JSON" perfectly
+        # Clean up possible markdown wrappers
         if content.startswith("```json"):
             content = content[7:]
         if content.startswith("```"):
@@ -139,6 +143,8 @@ async def optimize_resumes(
         parsed_json = json.loads(content)
         return parsed_json
 
+    except json.JSONDecodeError as decode_err:
+        raise HTTPException(status_code=500, detail=f"LLM returned invalid JSON. Raw output: {content}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"LLM Processing Failed: {str(e)}")
 
