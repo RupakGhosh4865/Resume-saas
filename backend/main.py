@@ -49,25 +49,30 @@ Your job:
 - Remove irrelevant skills that hurt ATS ranking for this specific role.
 - Give a match score out of 100.
 - Suggest 2 specific projects the candidate should build to get shortlisted for this exact role — be very specific with tech stack, what to build, and exactly why it matches the JD.
+- **NEW**: For EACH resume category, write a professional, formal **Cover Letter** (approx. 250-300 words) and a **Recruitment Email** (meant for HR/Hiring Manager). These should describe the candidate's expertise, why they are willing to join the company, and how they add specific value based on the JD. Use a polite, confident, and persuasive tone.
 
 Respond ONLY with a valid JSON object. No markdown, no explanation outside JSON.
 Use this exact structure:
 {
   "resume_genai": {
     "match_score": number,
-    "optimized_resume_latex": "exact latex string mapped from the Gen AI template",
-    "added_keywords": ["keyword1", "keyword2"],
-    "removed_keywords": ["keyword1"],
-    "ats_tips": ["tip1", "tip2"],
-    "project_suggestions": [{ "title": "title", "description": "desc", "why_selected": "why" }]
+    "optimized_resume_latex": "exact latex string",
+    "added_keywords": ["kw1"],
+    "removed_keywords": ["kw2"],
+    "ats_tips": ["tip1"],
+    "project_suggestions": [{ "title": "t1", "description": "d1", "why_selected": "w1" }],
+    "cover_letter": "The full text of the professional cover letter",
+    "application_email": "The full text of the recruitment email"
   },
   "resume_backend": {
     "match_score": number,
-    "optimized_resume_latex": "exact latex string mapped from the Backend template",
+    "optimized_resume_latex": "exact latex string",
     "added_keywords": [],
     "removed_keywords": [],
     "ats_tips": [],
-    "project_suggestions": [{ "title": "", "description": "", "why_selected": "" }]
+    "project_suggestions": [{ "title": "", "description": "", "why_selected": "" }],
+    "cover_letter": "The full text of the professional cover letter",
+    "application_email": "The full text of the recruitment email"
   }
 }
 """

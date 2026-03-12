@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Upload, FileText, CheckCircle, XCircle, Copy, AlertCircle, ArrowRight, Download, FileType } from 'lucide-react';
+import { Upload, FileText, CheckCircle, XCircle, Copy, AlertCircle, ArrowRight, Download, FileType, Mail } from 'lucide-react';
 import clsx from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
@@ -190,6 +190,45 @@ function App() {
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+
+        {/* Cover Letter & Email */}
+        <div className="space-y-4">
+          <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-800">
+            <div className="flex justify-between items-center mb-2">
+              <h3 className="text-sm font-semibold text-slate-300 flex items-center gap-2">
+                <FileText className="w-4 h-4 text-purple-400" />
+                Cover Letter
+              </h3>
+              <button 
+                onClick={() => copyToClipboard(data.cover_letter)}
+                className="text-xs text-slate-400 hover:text-white flex items-center gap-1"
+              >
+                <Copy className="w-3 h-3" /> Copy
+              </button>
+            </div>
+            <p className="text-xs text-slate-400 whitespace-pre-wrap leading-relaxed">
+              {data.cover_letter}
+            </p>
+          </div>
+
+          <div className="bg-slate-900/50 p-4 rounded-xl border border-slate-800">
+            <div className="flex justify-between items-center mb-2">
+              <h3 className="text-sm font-semibold text-slate-300 flex items-center gap-2">
+                <Mail className="w-4 h-4 text-emerald-400" />
+                Recruitment Email
+              </h3>
+              <button 
+                onClick={() => copyToClipboard(data.application_email)}
+                className="text-xs text-slate-400 hover:text-white flex items-center gap-1"
+              >
+                <Copy className="w-3 h-3" /> Copy
+              </button>
+            </div>
+            <p className="text-xs text-slate-400 whitespace-pre-wrap leading-relaxed">
+              {data.application_email}
+            </p>
           </div>
         </div>
 
