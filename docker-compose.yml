@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+    container_name: resume_optimizer_backend
+    ports:
+      - "8002:8002"
+    environment:
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+    # Volumes are useful for local development to avoid rebuilding
+    volumes:
+      - ./backend:/app
+    # ensure we don't have python output buffering issues in docker
+    command: uvicorn main:app --host 0.0.0.0 --port 8002 --reload
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: resume_optimizer_frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend

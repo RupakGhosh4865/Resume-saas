@@ -1,0 +1,21 @@
+# Node & Vite
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+env/
+.env
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Optional IDE
+.vscode/
+.idea/
