@@ -134,7 +134,7 @@ async def optimize_resumes(
                 {"role": "system", "content": SYSTEM_PROMPT + "\n\nIMPORTANT: Your entire response must be a single raw JSON object. No markdown, no backticks, no explanation. Start with { and end with }."},
                 {"role": "user", "content": user_message}
             ],
-            max_tokens=4096,
+            max_tokens=8000,
             temperature=0.1,
             response_format={"type": "json_object"}
         )
