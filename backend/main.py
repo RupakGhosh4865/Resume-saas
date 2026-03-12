@@ -75,35 +75,29 @@ class PDFGenerator(FPDF):
         if content.get("experience"):
             self.add_section("Professional Experience")
             for exp in content.get("experience"):
-                # Left side: Role and Company
+                # Sequential layout to prevent horizontal space issues
                 self.set_font("helvetica", "B", 10)
-                left_text = normalize_text(f"{exp.get('role')} at {exp.get('company')}")
-                self.cell(140, 5, left_text, ln=False)
+                role_company = f"{exp.get('role')} at {exp.get('company')}"
+                self.multi_cell(0, 5, normalize_text(role_company))
                 
-                # Right side: Duration
                 self.set_font("helvetica", "I", 9)
                 self.cell(0, 5, normalize_text(exp.get("duration")), ln=True, align="R")
                 
                 self.set_font("helvetica", "", 9)
                 for pt in exp.get("points", []):
-                    self.multi_cell(0, 5, normalize_text(f"- {pt}"))
+                    self.multi_cell(0, 7, normalize_text(f"\u2022 {pt}"))
                 self.ln(3)
 
         # Projects
         if content.get("projects"):
             self.add_section("Key Projects")
             for proj in content.get("projects"):
-                # Left: Title
                 self.set_font("helvetica", "B", 10)
-                self.cell(140, 5, normalize_text(proj.get("title")), ln=False)
-                
-                # Right: Tech
-                self.set_font("helvetica", "I", 9)
-                self.cell(0, 5, normalize_text(proj.get("tech")), ln=True, align="R")
+                self.multi_cell(0, 5, normalize_text(f"{proj.get('title')} ({proj.get('tech')})"))
                 
                 self.set_font("helvetica", "", 9)
                 for pt in proj.get("points", []):
-                    self.multi_cell(0, 5, normalize_text(f"- {pt}"))
+                    self.multi_cell(0, 7, normalize_text(f"\u2022 {pt}"))
                 self.ln(3)
 
         # Skills
@@ -111,25 +105,30 @@ class PDFGenerator(FPDF):
             self.add_section("Technical Skills")
             self.set_font("helvetica", "", 10)
             skills = content.get("skills", {})
-            self.multi_cell(0, 5, normalize_text(f"Languages: {', '.join(skills.get('languages', []))}"))
-            self.multi_cell(0, 5, normalize_text(f"Frameworks: {', '.join(skills.get('frameworks', []))}"))
-            self.multi_cell(0, 5, normalize_text(f"Tools: {', '.join(skills.get('tools', []))}"))
+            if skills.get('languages'): self.multi_cell(0, 6, normalize_text(f"Languages: {', '.join(skills.get('languages', []))}"))
+            if skills.get('frameworks'): self.multi_cell(0, 6, normalize_text(f"Frameworks: {', '.join(skills.get('frameworks', []))}"))
+            if skills.get('tools'): self.multi_cell(0, 6, normalize_text(f"Tools: {', '.join(skills.get('tools', []))}"))
+            self.ln(5)
+
+        # Keywords Added (for ATS impact visibility)
+        if content.get("added_keywords"):
+            self.add_section("Optimized Keywords")
+            self.set_font("helvetica", "I", 9)
+            self.multi_cell(0, 5, normalize_text(", ".join(content.get("added_keywords", []))))
             self.ln(5)
 
         # Education
         if content.get("education"):
             self.add_section("Education")
             for edu in content.get("education"):
-                # Left: Institution
                 self.set_font("helvetica", "B", 10)
-                self.cell(140, 5, normalize_text(edu.get("institution")), ln=False)
+                self.multi_cell(0, 5, normalize_text(edu.get("institution")))
                 
-                # Right: Duration
                 self.set_font("helvetica", "I", 9)
                 self.cell(0, 5, normalize_text(edu.get("duration")), ln=True, align="R")
                 
                 self.set_font("helvetica", "", 9)
-                self.cell(0, 5, normalize_text(edu.get("degree")), ln=True)
+                self.multi_cell(0, 5, normalize_text(edu.get("degree")))
                 if edu.get("details"):
                     self.multi_cell(0, 5, normalize_text(edu.get("details")))
                 self.ln(3)

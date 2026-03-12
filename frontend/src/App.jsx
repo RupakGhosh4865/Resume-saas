@@ -180,6 +180,95 @@ function App() {
     }
   };
 
+  const ResumePreview = ({ content }) => {
+    if (!content) return null;
+    return (
+      <div className="bg-white text-slate-900 p-8 rounded-xl shadow-2xl font-serif max-h-[800px] overflow-y-auto w-full max-w-[800px] mx-auto space-y-6">
+        {/* Header */}
+        <div className="text-center border-b-2 border-slate-200 pb-4">
+          <h1 className="text-2xl font-bold uppercase tracking-wide">{content.full_name}</h1>
+          <div className="text-xs text-slate-600 mt-1 space-x-2">
+            <span>{content.contact?.email}</span>
+            <span>•</span>
+            <span>{content.contact?.phone}</span>
+            <span>•</span>
+            <span>{content.contact?.location}</span>
+          </div>
+          <div className="text-[10px] text-blue-600 mt-1 uppercase font-bold tracking-tighter">
+            {content.contact?.linkedin} | {content.contact?.github}
+          </div>
+        </div>
+
+        {/* Summary */}
+        <div className="space-y-2">
+          <h2 className="text-sm font-bold uppercase border-b border-slate-300 text-slate-700">Professional Summary</h2>
+          <p className="text-xs leading-relaxed italic">{content.summary}</p>
+        </div>
+
+        {/* Experience */}
+        <div className="space-y-4">
+          <h2 className="text-sm font-bold uppercase border-b border-slate-300 text-slate-700">Professional Experience</h2>
+          {content.experience?.map((exp, i) => (
+            <div key={i} className="space-y-1">
+              <div className="flex justify-between items-baseline font-bold text-xs">
+                <span>{exp.role} at {exp.company}</span>
+                <span className="italic font-normal">{exp.duration}</span>
+              </div>
+              <ul className="list-disc list-inside space-y-0.5">
+                {exp.points?.map((pt, j) => (
+                  <li key={j} className="text-[11px] leading-tight text-slate-700">{pt}</li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+
+        {/* Projects */}
+        <div className="space-y-4">
+          <h2 className="text-sm font-bold uppercase border-b border-slate-300 text-slate-700">Key Projects</h2>
+          {content.projects?.map((proj, i) => (
+            <div key={i} className="space-y-1">
+              <div className="flex justify-between items-baseline font-bold text-xs">
+                <span>{proj.title}</span>
+                <span className="italic font-normal text-[10px]">{proj.tech}</span>
+              </div>
+              <ul className="list-disc list-inside space-y-0.5">
+                {proj.points?.map((pt, j) => (
+                  <li key={j} className="text-[11px] leading-tight text-slate-700">{pt}</li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+
+        {/* Skills */}
+        <div className="space-y-2">
+          <h2 className="text-sm font-bold uppercase border-b border-slate-300 text-slate-700">Technical Skills</h2>
+          <div className="text-[11px] space-y-1">
+            <p><span className="font-bold">Languages:</span> {content.skills?.languages?.join(', ')}</p>
+            <p><span className="font-bold">Frameworks:</span> {content.skills?.frameworks?.join(', ')}</p>
+            <p><span className="font-bold">Tools:</span> {content.skills?.tools?.join(', ')}</p>
+          </div>
+        </div>
+
+        {/* Education */}
+        <div className="space-y-2">
+          <h2 className="text-sm font-bold uppercase border-b border-slate-300 text-slate-700">Education</h2>
+          {content.education?.map((edu, i) => (
+            <div key={i} className="text-xs">
+              <div className="flex justify-between items-baseline font-bold">
+                <span>{edu.institution}</span>
+                <span className="italic font-normal">{edu.duration}</span>
+              </div>
+              <p className="italic text-[11px]">{edu.degree}</p>
+              {edu.details && <p className="text-[10px] text-slate-600 italic">Expected: {edu.details}</p>}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
   const renderResultColumn = (title, data) => {
     if (!data) return null;
 
@@ -193,6 +282,15 @@ function App() {
               {data.match_score}%
             </span>
           </div>
+        </div>
+
+        {/* Live CV Preview */}
+        <div className="space-y-4">
+          <h3 className="text-sm font-semibold text-slate-300 flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-yellow-400" />
+            Live CV Preview
+          </h3>
+          <ResumePreview content={data.content} />
         </div>
 
         {/* Keywords */}
