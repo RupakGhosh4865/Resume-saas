@@ -169,24 +169,43 @@ class CompileRequest(BaseModel):
 
 @app.post("/api/compile-pdf")
 async def compile_pdf(request: CompileRequest):
-    try:
-        # We use latex.online which is a free service to compile LaTeX
-        # We'll use a POST request to handle large LaTeX strings
-        # The backend can make this request without CORS issues
-        url = 'https://latex.online/compile?command=pdflatex'
-        response = requests.post(url, json={"text": request.latex_code})
+    templates_to_try = [
+        # Primary: latex.online (with better timeout and user-agent)
+        ("https://latex.online/compile?command=pdflatex", "post_json"),
+        # Fallback: texlive.net (widely used for web-based tex)
+        ("https://texlive.net/cgi-bin/texlive/texlive.sh", "post_form")
+    ]
+    
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+    }
 
-        if response.status_code != 200:
-            raise HTTPException(status_code=500, detail=f"LaTeX compilation failed: {response.text}")
+    last_error = ""
+    for url, method in templates_to_try:
+        try:
+            if method == "post_json":
+                response = requests.post(url, json={"text": request.latex_code}, headers=headers, timeout=15)
+            else:
+                # texlive.net format
+                response = requests.post(url, data={
+                    "filecontents[]": request.latex_code,
+                    "filename[]": "main.tex",
+                    "engine": "pdflatex",
+                    "return": "pdf"
+                }, headers=headers, timeout=15)
 
-        # Return the PDF as a stream
-        return StreamingResponse(
-            io.BytesIO(response.content),
-            media_type="application/pdf",
-            headers={"Content-Disposition": "attachment; filename=optimized_resume.pdf"}
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"PDF Generation Failed: {str(e)}")
+            if response.status_code == 200 and len(response.content) > 1000: # Basic check if it's a real PDF
+                return StreamingResponse(
+                    io.BytesIO(response.content),
+                    media_type="application/pdf",
+                    headers={"Content-Disposition": "attachment; filename=optimized_resume.pdf"}
+                )
+            last_error = f"Service {url} returned {response.status_code}"
+        except Exception as e:
+            last_error = str(e)
+            continue # Try next service
+
+    raise HTTPException(status_code=503, detail=f"All LaTeX compilation services failed or timed out. Last error: {last_error}. Please use the '.tex' download and paste into Overleaf.")
 
 @app.get("/health")
 def health_check():
