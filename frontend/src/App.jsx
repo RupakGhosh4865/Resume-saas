@@ -10,6 +10,7 @@ function cn(...inputs) {
 function App() {
   const [genAiFile, setGenAiFile] = useState(null);
   const [backendFile, setBackendFile] = useState(null);
+  const [defaultFiles, setDefaultFiles] = useState({ genai: null, backend: null });
   const [jobDescription, setJobDescription] = useState('');
   const [isOptimizing, setIsOptimizing] = useState(false);
   const [results, setResults] = useState(null);
@@ -39,6 +40,45 @@ function App() {
     }
   };
 
+  const fetchDefaults = async () => {
+    try {
+      const response = await fetch('http://localhost:8002/api/get-defaults');
+      if (response.ok) {
+        const data = await response.json();
+        setDefaultFiles(data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch defaults:", err);
+    }
+  };
+
+  const saveDefaults = async () => {
+    if (!genAiFile && !backendFile) {
+        alert("Please upload at least one resume to save as default.");
+        return;
+    }
+    const formData = new FormData();
+    if (genAiFile) formData.append('resume_genai', genAiFile);
+    if (backendFile) formData.append('resume_backend', backendFile);
+
+    try {
+      const response = await fetch('http://localhost:8002/api/save-defaults', {
+        method: 'POST',
+        body: formData,
+      });
+      if (response.ok) {
+        alert("Defaults saved successfully!");
+        fetchDefaults();
+      }
+    } catch (err) {
+      alert("Failed to save defaults.");
+    }
+  };
+
+  React.useEffect(() => {
+    fetchDefaults();
+  }, []);
+
   React.useEffect(() => {
     if (view === 'dashboard') {
       fetchHistory();
@@ -55,8 +95,11 @@ function App() {
   };
 
   const handleOptimize = async () => {
-    if (!genAiFile || !backendFile || !jobDescription.trim()) {
-      setError("Please provide both PDFs and a Job Description.");
+    const hasGenAi = genAiFile || defaultFiles.genai;
+    const hasBackend = backendFile || defaultFiles.backend;
+
+    if (!hasGenAi || !hasBackend || !jobDescription.trim()) {
+      setError("Please provide both PDFs (or use saved defaults) and a Job Description.");
       return;
     }
 
@@ -459,13 +502,32 @@ function App() {
                   </div>
                 ) : (
                   <>
+                    <div className="flex justify-between items-end mb-4">
+                      <div className="space-y-1">
+                        <h3 className="text-lg font-bold text-white">Resume Selection</h3>
+                        <p className="text-xs text-slate-500">Upload new files or use your saved defaults automatically.</p>
+                      </div>
+                      <button 
+                        onClick={saveDefaults}
+                        className="px-4 py-2 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-xl hover:bg-emerald-500 hover:text-white transition-all text-xs font-semibold flex items-center gap-2"
+                      >
+                        <Database className="w-3.5 h-3.5" />
+                        Save Current as Default
+                      </button>
+                    </div>
+
                     <div className="grid md:grid-cols-2 gap-6">
                       {/* File Upload 1 */}
                       <div className="space-y-2">
-                        <label className="text-sm font-semibold text-slate-300 block">Gen AI Resume (PDF)</label>
+                        <label className="text-sm font-semibold text-slate-300 flex justify-between">
+                          <span>Gen AI Resume (PDF)</span>
+                          {defaultFiles.genai && !genAiFile && (
+                            <span className="text-[10px] bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded-full border border-blue-500/20">Using Default: {defaultFiles.genai}</span>
+                          )}
+                        </label>
                         <label className={cn(
                           "flex flex-col items-center justify-center w-full h-40 border-2 border-dashed rounded-2xl cursor-pointer transition-all duration-200",
-                          genAiFile ? "border-blue-500 bg-blue-500/5" : "border-slate-700 hover:border-slate-500 hover:bg-slate-800/50 bg-slate-900",
+                          genAiFile ? "border-blue-500 bg-blue-500/5" : (defaultFiles.genai ? "border-blue-500/30 bg-blue-500/5 italic" : "border-slate-700 hover:border-slate-500 hover:bg-slate-800/50 bg-slate-900"),
                         )}>
                           <div className="flex flex-col items-center justify-center pt-5 pb-6 text-center px-4">
                             {genAiFile ? (
@@ -473,6 +535,12 @@ function App() {
                                 <CheckCircle className="w-8 h-8 text-blue-500 mb-2" />
                                 <p className="text-sm text-slate-300 font-medium truncate max-w-full">{genAiFile.name}</p>
                               </>
+                            ) : defaultFiles.genai ? (
+                                <>
+                                  <Database className="w-8 h-8 text-blue-400/50 mb-3" />
+                                  <p className="text-sm text-slate-400"><span className="font-semibold text-blue-400">Default Loaded</span></p>
+                                  <p className="text-[10px] text-slate-500 mt-1">Click to replace</p>
+                                </>
                             ) : (
                               <>
                                 <Upload className="w-8 h-8 text-slate-500 mb-3" />
@@ -486,10 +554,15 @@ function App() {
 
                       {/* File Upload 2 */}
                       <div className="space-y-2">
-                        <label className="text-sm font-semibold text-slate-300 block">Backend Developer Resume (PDF)</label>
+                        <label className="text-sm font-semibold text-slate-300 flex justify-between">
+                          <span>Backend Developer Resume (PDF)</span>
+                          {defaultFiles.backend && !backendFile && (
+                            <span className="text-[10px] bg-purple-500/20 text-purple-400 px-2 py-0.5 rounded-full border border-purple-500/20">Using Default: {defaultFiles.backend}</span>
+                          )}
+                        </label>
                         <label className={cn(
                           "flex flex-col items-center justify-center w-full h-40 border-2 border-dashed rounded-2xl cursor-pointer transition-all duration-200",
-                          backendFile ? "border-purple-500 bg-purple-500/5" : "border-slate-700 hover:border-slate-500 hover:bg-slate-800/50 bg-slate-900",
+                          backendFile ? "border-purple-500 bg-purple-500/5" : (defaultFiles.backend ? "border-purple-500/30 bg-purple-500/5 italic" : "border-slate-700 hover:border-slate-500 hover:bg-slate-800/50 bg-slate-900"),
                         )}>
                           <div className="flex flex-col items-center justify-center pt-5 pb-6 text-center px-4">
                             {backendFile ? (
@@ -497,6 +570,12 @@ function App() {
                                 <CheckCircle className="w-8 h-8 text-purple-500 mb-2" />
                                 <p className="text-sm text-slate-300 font-medium truncate max-w-full">{backendFile.name}</p>
                               </>
+                            ) : defaultFiles.backend ? (
+                                <>
+                                  <Database className="w-8 h-8 text-purple-400/50 mb-3" />
+                                  <p className="text-sm text-slate-400"><span className="font-semibold text-purple-400">Default Loaded</span></p>
+                                  <p className="text-[10px] text-slate-500 mt-1">Click to replace</p>
+                                </>
                             ) : (
                               <>
                                 <Upload className="w-8 h-8 text-slate-500 mb-3" />

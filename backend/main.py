@@ -30,10 +30,54 @@ def init_db():
             data_json TEXT
         )
     ''')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS defaults (
+            id TEXT PRIMARY KEY,
+            filename TEXT,
+            text_content TEXT
+        )
+    ''')
     conn.commit()
     conn.close()
 
 init_db()
+
+@app.post("/api/save-defaults")
+async def save_defaults(
+    resume_genai: UploadFile = File(None),
+    resume_backend: UploadFile = File(None)
+):
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        
+        if resume_genai:
+            content = extract_text_from_pdf(await resume_genai.read())
+            cursor.execute("INSERT OR REPLACE INTO defaults (id, filename, text_content) VALUES ('genai', ?, ?)", 
+                           (resume_genai.filename, content))
+        
+        if resume_backend:
+            content = extract_text_from_pdf(await resume_backend.read())
+            cursor.execute("INSERT OR REPLACE INTO defaults (id, filename, text_content) VALUES ('backend', ?, ?)", 
+                           (resume_backend.filename, content))
+        
+        conn.commit()
+        conn.close()
+        return {"status": "success"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/get-defaults")
+async def get_defaults():
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, filename FROM defaults")
+        rows = cursor.fetchall()
+        conn.close()
+        return {row[0]: row[1] for row in rows}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 # Allow all origins for dev
 app.add_middleware(
@@ -103,8 +147,8 @@ Use this exact structure:
 
 @app.post("/api/optimize")
 async def optimize_resumes(
-    resume_genai: UploadFile = File(...),
-    resume_backend: UploadFile = File(...),
+    resume_genai: UploadFile = File(None),
+    resume_backend: UploadFile = File(None),
     job_description: str = Form(...)
 ):
     # Ensure Groq Token is set
@@ -112,15 +156,40 @@ async def optimize_resumes(
     if not groq_api_key:
         raise HTTPException(status_code=500, detail="GROQ_API_KEY is not set in .env")
         
-    # Validate files
-    if not resume_genai.filename.lower().endswith(".pdf"):
-        raise HTTPException(status_code=400, detail="Gen AI resume must be a PDF file.")
-    if not resume_backend.filename.lower().endswith(".pdf"):
-        raise HTTPException(status_code=400, detail="Backend resume must be a PDF file.")
+    # Extract text or fetch defaults
+    genai_text = ""
+    backend_text = ""
+    
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
 
-    # Extract text from PDFs
-    genai_text = extract_text_from_pdf(await resume_genai.read())
-    backend_text = extract_text_from_pdf(await resume_backend.read())
+    # Gen AI Resume logic
+    if resume_genai:
+        if not resume_genai.filename.lower().endswith(".pdf"):
+            raise HTTPException(status_code=400, detail="Gen AI resume must be a PDF file.")
+        genai_text = extract_text_from_pdf(await resume_genai.read())
+    else:
+        cursor.execute("SELECT text_content FROM defaults WHERE id = 'genai'")
+        row = cursor.fetchone()
+        if row:
+            genai_text = row[0]
+        else:
+            raise HTTPException(status_code=400, detail="Gen AI Resume missing and no default found.")
+
+    # Backend Resume logic
+    if resume_backend:
+        if not resume_backend.filename.lower().endswith(".pdf"):
+            raise HTTPException(status_code=400, detail="Backend resume must be a PDF file.")
+        backend_text = extract_text_from_pdf(await resume_backend.read())
+    else:
+        cursor.execute("SELECT text_content FROM defaults WHERE id = 'backend'")
+        row = cursor.fetchone()
+        if row:
+            backend_text = row[0]
+        else:
+            raise HTTPException(status_code=400, detail="Backend Resume missing and no default found.")
+    
+    conn.close()
 
     # Load and optimize templates to minimize token generation
     def minify_latex(text: str) -> str:
