@@ -112,7 +112,7 @@ async def optimize_resumes(
         
         # Using Llama 3 70B on Groq which supports incredibly fast token generation and JSON schema
         response = client.chat.completions.create(
-            model="llama3-70b-8192",
+            model="llama-3.3-70b-versatile",
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT + "\n\nIMPORTANT: Your entire response must be a single raw JSON object. No markdown, no backticks, no explanation. Start with { and end with }."},
                 {"role": "user", "content": user_message}
