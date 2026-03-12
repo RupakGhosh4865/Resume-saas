@@ -258,6 +258,7 @@ async def optimize_resumes(
             content = content[:-3]
             
         content = content.strip()
+        parsed_json = json.loads(content)
 
         # Save to DB
         try:
