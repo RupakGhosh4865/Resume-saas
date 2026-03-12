@@ -77,10 +77,10 @@ async def optimize_resumes(
     resume_backend: UploadFile = File(...),
     job_description: str = Form(...)
 ):
-    # Ensure HF Token is set
-    hf_token = os.environ.get("HUGGINGFACEHUB_API_TOKEN")
-    if not hf_token:
-        raise HTTPException(status_code=500, detail="HUGGINGFACEHUB_API_TOKEN is not set in .env")
+    # Ensure Groq Token is set
+    groq_api_key = os.environ.get("GROQ_API_KEY")
+    if not groq_api_key:
+        raise HTTPException(status_code=500, detail="GROQ_API_KEY is not set in .env")
         
     # Validate files
     if not resume_genai.filename.lower().endswith(".pdf"):
@@ -105,31 +105,26 @@ async def optimize_resumes(
 {job_description}
 """
     
-    # Qwen Instruct models respond best to explicit structural formatting boundaries
-    formatted_prompt = f"""<|im_start|>system
-{SYSTEM_PROMPT}<|im_end|>
-<|im_start|>user
-{user_message}<|im_end|>
-<|im_start|>assistant
-"""
-
+    from groq import Groq
+    
     try:
-        # Initialize HuggingFace Endpoint for Qwen2.5-72B-Instruct
-        llm = HuggingFaceEndpoint(
-            repo_id="Qwen/Qwen2.5-72B-Instruct",
-            task="text-generation",
-            max_new_tokens=4096,
-            temperature=0.1,
-            do_sample=False,
-            huggingfacehub_api_token=hf_token
-        )
-
-        response = llm.invoke(formatted_prompt)
+        client = Groq(api_key=groq_api_key)
         
-        # Clean up the response buffer from endpoint which returns raw appended text typically
-        content = str(response).strip()
+        # Using Llama 3 70B on Groq which supports incredibly fast token generation and JSON schema
+        response = client.chat.completions.create(
+            model="llama3-70b-8192",
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT + "\n\nIMPORTANT: Your entire response must be a single raw JSON object. No markdown, no backticks, no explanation. Start with { and end with }."},
+                {"role": "user", "content": user_message}
+            ],
+            max_tokens=4096,
+            temperature=0.1,
+            response_format={"type": "json_object"}
+        )
+        
+        content = response.choices[0].message.content.strip()
 
-        # Clean up possible markdown wrappers
+        # Clean up possible markdown wrappers if the model hallucinated any
         if content.startswith("```json"):
             content = content[7:]
         if content.startswith("```"):
