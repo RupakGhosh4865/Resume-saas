@@ -83,19 +83,21 @@ function App() {
   const downloadPDF = async (latexCode, filename) => {
     setIsGeneratingPdf(filename);
     try {
-      // We use latex.online which is a free service to compile LaTeX
-      // We'll use a POST request to handle large LaTeX strings
-      const response = await fetch('https://latex.online/compile?command=pdflatex', {
+      // Use our backend proxy to avoid CORS issues with latex.online
+      const response = await fetch('http://localhost:8002/api/compile-pdf', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          text: latexCode
+          latex_code: latexCode
         }),
       });
 
-      if (!response.ok) throw new Error("PDF compilation failed");
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.detail || "PDF compilation failed");
+      }
 
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
@@ -106,7 +108,7 @@ function App() {
       link.click();
       document.body.removeChild(link);
     } catch (err) {
-      alert("PDF Generation Failed. You can still download the .tex file and compile it on Overleaf.");
+      alert(`PDF Generation Failed: ${err.message}. You can still download the .tex file and compile it on Overleaf.`);
       console.error(err);
     } finally {
       setIsGeneratingPdf(null);

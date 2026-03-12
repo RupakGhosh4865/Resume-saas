@@ -160,6 +160,34 @@ async def optimize_resumes(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"LLM Processing Failed: {str(e)}")
 
+import requests
+from fastapi.responses import StreamingResponse
+import io
+
+class CompileRequest(BaseModel):
+    latex_code: str
+
+@app.post("/api/compile-pdf")
+async def compile_pdf(request: CompileRequest):
+    try:
+        # We use latex.online which is a free service to compile LaTeX
+        # We'll use a POST request to handle large LaTeX strings
+        # The backend can make this request without CORS issues
+        url = 'https://latex.online/compile?command=pdflatex'
+        response = requests.post(url, json={"text": request.latex_code})
+
+        if response.status_code != 200:
+            raise HTTPException(status_code=500, detail=f"LaTeX compilation failed: {response.text}")
+
+        # Return the PDF as a stream
+        return StreamingResponse(
+            io.BytesIO(response.content),
+            media_type="application/pdf",
+            headers={"Content-Disposition": "attachment; filename=optimized_resume.pdf"}
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"PDF Generation Failed: {str(e)}")
+
 @app.get("/health")
 def health_check():
     return {"status": "ok"}
