@@ -1,0 +1,264 @@
+%------------------------
+% Ethan's Résumé Template
+% Author: necusjz
+% License: CC-BY-4.0
+%------------------------
+\documentclass[letterpaper,50pt]{article} % Reduced font size to 10pt
+\usepackage{fontawesome5}
+\usepackage{graphicx}
+\usepackage{latexsym}
+\usepackage[empty]{fullpage}
+\usepackage{titlesec}
+\usepackage{marvosym}
+\usepackage[usenames,dvipsnames]{color}
+\usepackage{verbatim}
+\usepackage{enumitem}
+\usepackage[colorlinks=true,urlcolor=blue]{hyperref}
+\usepackage{fancyhdr}
+\usepackage[english]{babel}
+\usepackage{tabularx}
+\usepackage{fontawesome5}
+\usepackage{ragged2e}
+\usepackage{etoolbox}
+\usepackage{tikz}
+\input{glyphtounicode}
+
+\definecolor{linkcolor}{RGB}{0, 0, 225} % Blue for links
+
+% font options
+\usepackage[sc]{mathpazo}
+\linespread{1.05}  % palladio needs more leading (space between lines)
+\usepackage[T1]{fontenc}
+
+\pagestyle{fancy}
+\fancyhf{}  % clear all header and footer fields
+\fancyfoot{}
+\renewcommand{\headrulewidth}{0pt}
+\renewcommand{\footrulewidth}{0pt}
+
+% adjust margins
+\addtolength{\oddsidemargin}{-0.5in}
+\addtolength{\evensidemargin}{-0.5in}
+\addtolength{\textwidth}{1in}
+\addtolength{\topmargin}{-.5in}
+\addtolength{\textheight}{1.0in}
+
+\urlstyle{same}
+
+\raggedbottom
+\raggedright
+\setlength{\tabcolsep}{0in}
+\setlength{\footskip}{5pt}
+
+% sections formatting
+\titleformat{\section}{
+  \vspace{-4pt}\scshape\raggedright\large
+}{}{0em}{}[\color{black}\titlerule \vspace{-6pt}]
+
+% ensure that generate pdf is machine readable/ATS parsable
+\pdfgentounicode=1
+
+% custom commands
+\newcommand{\cvitem}[1]{
+  \item\small{
+    {#1\vspace{-2pt}}
+  }
+}
+
+\newcommand{\cvheading}[4]{
+  \vspace{-6pt}\item
+    \begin{tabular*}{\textwidth}[t]{l@{\extracolsep{\fill}}r}
+      \textbf{#1} & #2 \\
+      \small#3 & \small #4 \\
+    \end{tabular*}\vspace{-9pt}
+}
+
+\newcommand{\cvheadingstart}{\begin{itemize}[leftmargin=0in, label={}]}
+\newcommand{\cvheadingend}{\end{itemize}}
+\newcommand{\cvitemstart}{\begin{itemize}\justifying}
+\newcommand{\cvitemend}{\end{itemize}\vspace{-6pt}}
+
+\renewcommand\labelitemii{$\vcenter{\hbox{\footnotesize$\bullet$}}$}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=blue, % choose a color
+  urlcolor=blue  % choose a color
+}
+\begin{document}
+\vspace{-500pt}
+% contact information
+\begin{center}
+
+  \textbf{\LARGE\scshape RUPAK GHOSH} \\
+  \vspace{2pt}\small
+   
+  \faMobile* (+91) 6909524809
+   \ 
+   \faMapMarker* Lucknow,India
+ 
+\vspace{2pt}
+  
+   \href{mailto:rupak4865@gmail.com}{rupak4865@gmail.com \faEnvelope}
+   \vspace{2pt}
+  \
+  \href{https://github.com/RupakGhosh4865}{GitHub: \faGithub}
+  \ 
+  \href{https://www.linkedin.com/in/rupak-ghosh-949258244/}{LinkedIn: \faLinkedin}
+  \
+   \href{https://rupakghosh.vercel.app/}{Portfolio: \faMobile}
+  \
+
+   
+\end{center}
+
+\vspace{-20pt}
+
+
+\section{Education}
+\cvheadingstart
+\vspace{5pt}
+  \cvheading
+    {Institute Of Engineering And Technology}{Lucknow,Uttar Pradesh}
+    {Bachelor Of Technology : COMPUTER SCIENCE AND ENGINEERING : CGPA 7.5}{2021 - 2025}
+   \cvheading
+    {Kendriya Vidyala Kunjaban No.1 Agartala}{Agaratala,Tripura}
+    {Intermediate: 81\%}{2021}
+
+    \cvheadingend
+\vspace{-15pt}
+
+\section*{Experiences}
+\cvheadingstart
+
+\cvitem{\textbf{Backend Developer Intern, Job Alchemy}}\href{https://jobalchemy.vercel.app/}{(view \faExternalLink*)} \hfill {(Nov’24 - March'25)}
+\vspace{-7pt}
+\cvitemstart
+\cvitem {Developed a Chrome extension for automating job applications using RESTful APIs and OpenAI prompts for generating personalized resumes.}
+\cvitem {Implemented AI-driven automation to enable one-click job applications, reducing manual effort by 70\%.}
+\cvitem {Integrated OpenAI's GPT models to dynamically generate CVs tailored to job descriptions.}
+\cvitemend
+\vspace{-4pt}
+
+\cvitem{\textbf{Backend Developer Intern, Sales Up}} \href{https://salesup.club/}{(view \faExternalLink*)}\hfill {(Nov’24 - Jan’25)}
+\vspace{-4pt}
+\cvitemstart
+\cvitem {Built a lead generation system using RESTful APIs and integrated Google Docs with Gmail for automated email generation using n8n.}
+\cvitem {Developed no-code websites using Bubble.io, enabling rapid prototyping and deployment.}
+\cvitem {Optimized email workflows, reducing lead response time by 50\%.}
+\cvitemend
+\vspace{-4pt}
+
+\cvitem{\textbf{Full-Stack Developer Intern, MedWander}}\href{https://medwander.com/}{(view \faExternalLink*)} \hfill {(Aug’24 - Nov’24)}
+\vspace{-4pt}
+\cvitemstart
+\cvitem {Implemented RESTful APIs for product management, user authentication (JWT), and order processing.}
+\cvitem {Utilized MongoDB for database management and optimized queries for performance.}
+\cvitemend
+\vspace{-8pt}
+
+\cvheadingend
+\vspace{-10pt}
+
+\section*{Projects}
+\cvheadingstart
+
+\cvitem{\textbf{TRUE-FEEDBACK APP}} \href{https://truefeedbacks.netlify.app}{\textcolor{linkcolor}{[Live]}} 
+\href{https://github.com/RupakGhosh4865/truefeedbacks}{\textcolor{linkcolor}{[GitHub]}}}
+\hfill{June,2024}
+\vspace{-7pt}
+\cvitem{ $\ \diamond\ $Built a secure feedback platform using Next.js, NextAuth, TypeScript, MongoDB, Node.js, and AI integration.}
+\vspace{-7pt}
+\cvitem{$\ \diamond\ $Enabled anonymous feedback submission with OTP verification for signup security. Implemented AI for intelligent message suggestions based on user feedback.}
+\vspace{-7pt}
+\cvitemstart
+  \cvitem{\textbf{Tech Used}- NextJs,NextAuth,Resend email,Typescript,OpenAi,MongoDB as database,shadcnui,css Tailwind and netlify 
+}
+\cvitemend
+\vspace{-2pt}
+
+\cvitem{\textbf{PLAY TUBE-APP}}
+\href{https://frontend-playtube.vercel.app/}{\textcolor{linkcolor}{[Live]}} 
+\href{https://github.com/RupakGhosh4865/Backend-Playtube}{\textcolor{linkcolor}{[GitHub]}}}
+\hfill{Dec,2023}
+\vspace{-7pt}
+\cvitem{ $\ \diamond\ $Developed a video hosting and micro-blogging platform using Node.js, Express.js, React.js, and MongoDB. Key features include user authentication, video uploading, commenting, liking, subscribing, and an admin panel.}
+\vspace{-7pt}
+\cvitem{ $\ \diamond\ $Implemented security features using JWT, bcrypt, access and refresh tokens, optimizing user authentication and data protection by reducing request handling time by 40\%.}
+\vspace{-7pt}
+\cvitemstart 
+  \cvitem{\textbf{Tech Used}.VITE-ReactJs,Redux,Tailwind CSS,Node.js, Express, MongoDB, Apollo Server,Cloudinary,GraphQL,Postman }
+\cvitemend
+\vspace{-2pt}
+
+\cvitem{\textbf{YOUR-VLOG APP}}
+\href{https://yourvlogs.netlify.app/}{\textcolor{linkcolor}{[Live]}} 
+\href{https://github.com/RupakGhosh4865/your-vlogs}{\textcolor{linkcolor}{[GitHub]}}}
+\hfill{Sep,2023}
+\vspace{-5pt}
+\cvitem{ $\ \diamond\ $A full-stack React app with user signup, login, logout using Vite and styled with Tailwind CSS. managing CRUD operations for posts. Implemented a seamless integration between the React frontend and Appwrite backend,where user can share there vlogs.}
+\vspace{-5pt}
+\cvitemstart
+\cvitem{\textbf{Tech Used-}VITE-ReactJs, Tailwind CSS, appwrite ,redux-Toolkit,javascript,Cloudinary,react-Hookforms}
+\cvitemend
+\vspace{-2pt}
+
+\cvitem{\textbf{TO-DO-APP}}
+\href{https://rupak-to-do-app.netlify.app/}{\textcolor{linkcolor}{[Live]}} 
+\href{https://react-to-doo.netlify.app/}{\textcolor{linkcolor}{[Live]}} 
+\hfill{April,2023}
+\vspace{-5pt}
+\cvitem{ $\ \diamond\ $Created a dynamic To-Do app using React and Redux, showcasing proficiency in state management and user interactions. Implemented features for adding and deleting tasks}
+\vspace{-5pt}
+
+\cvheadingend
+\vspace{-15pt}
+
+\section*{Skills Summary}
+\vspace{-2pt}
+\begin{tabular}{ @{} >{\bfseries}l @{\hspace{6ex}} l }
+
+Languages: & JavaScript|Python|C++|C|TypeScript|SQL|Css|Html|Node.js
+\\
+Database: &  MySQL | MongoDB | Redis 
+\\
+FrameWorks: & Next.js | NextAuth|React.js| JQuery|Express.js |TailwindCSS | MongoDB |Redux
+\\
+Concept: & Data Structures and Algorithms|Object Oriented Programming Concepts|OS |DBMS|DAA.
+\\
+Soft Skills: & Leadership | Ability to work in a team | Public Speaking | Time Management
+\\
+Tools: & Git|Github|Postman|Appwrite|Vscode|axios|Redux-toolkit|Cloudinary|netlify
+\end{tabular}\\
+\vspace{-9pt}
+
+\section{Achievements}
+\cvitemstart  
+\vspace{1pt}
+  \cvitem{ Attained \textbf {DSA }mastery through Udemy course.\href{https://udemy-certificate.s3.amazonaws.com/image/UC-9693219d-085d-404c-adf3-f943a929dd53.jpg}{(view \faExternalLink*)}
+}
+\cvitemend
+\vspace{-9pt}
+\cvitemstart   
+  \cvitem{ Attained \textbf {MERN-STACK} Complete 2024 Web Development Bootcamp
+.\href{https://udemy-certificate.s3.amazonaws.com/image/UC-1cc7d78b-ee48-45c8-ba4a-26be2bba92c8.jpg}{(view \faExternalLink*)}
+}
+\cvitemend
+\vspace{-9pt}
+\cvitemstart   
+  \cvitem{secured \textbf{358 global rank} in starter 125 in div 4 out of 23000+ people in Codechef}
+\cvitemend
+\vspace{-9pt}
+\cvitemstart   
+  \cvitem{Solved \textbf{200+} questions of DSA at  \textbf{Leetcode}
+}
+\cvitemend
+\vspace{-9pt}
+\cvitemstart   
+  \cvitem{Participated in \textbf{Medecro.ai Hackathon 2024} where my team ranked in the top 10 among 1,600 applicants..\href{https://drive.google.com/file/d/18becaaeP6snzd1TeXW10usLLK0kVPrZ9/view?usp=drive_link}{(view \faExternalLink*)}
+}
+\cvitemend
+
+
+
+\end{document}

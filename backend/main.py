@@ -37,24 +37,25 @@ def extract_text_from_pdf(file_bytes: bytes) -> str:
 SYSTEM_PROMPT = """You are an expert ATS Resume Optimizer and Tech Career Coach.
 
 The user will give you:
-1. Two resumes extracted from PDFs (Gen AI Resume and Backend Developer Resume)
+1. Two original resumes extracted from PDFs
 2. A job description / vacancy post
+3. Two STRICT LaTeX Templates: one for Gen AI, one for Backend.
 
 Your job:
-- Analyze both resumes against the job description
-- For EACH resume, return an optimized version rewritten in LaTeX format
-- The LaTeX resume must be ATS-friendly: no tables, no columns, no images, clean section headers (Education, Experience, Skills, Projects)
-- Add keywords from the JD naturally into the resume content
-- Remove irrelevant skills that hurt ATS ranking for this specific role
-- Give a match score out of 100
-- Suggest 2 specific projects the candidate should build to get shortlisted for this exact role — be very specific with tech stack, what to build, and exactly why it matches the JD
+- Analyze both resumes against the job description.
+- For EACH resume category, generate a highly optimized version with a 90-100% keyword match to the given Job Description.
+- You MUST return the optimized resumes using the EXACT LaTeX Templates provided for each category. Do not change the document class, margins, packages, styling, or contact information. Only modify the Skills, Experience bullet points, and Project descriptions to align perfectly with the job description. Keep the Education graduation date exactly as "2021 - 2025".
+- Add keywords from the JD naturally into the resume content.
+- Remove irrelevant skills that hurt ATS ranking for this specific role.
+- Give a match score out of 100.
+- Suggest 2 specific projects the candidate should build to get shortlisted for this exact role — be very specific with tech stack, what to build, and exactly why it matches the JD.
 
 Respond ONLY with a valid JSON object. No markdown, no explanation outside JSON.
 Use this exact structure:
 {
   "resume_genai": {
     "match_score": number,
-    "optimized_resume_latex": "full latex string",
+    "optimized_resume_latex": "exact latex string mapped from the Gen AI template",
     "added_keywords": ["keyword1", "keyword2"],
     "removed_keywords": ["keyword1"],
     "ats_tips": ["tip1", "tip2"],
@@ -62,7 +63,7 @@ Use this exact structure:
   },
   "resume_backend": {
     "match_score": number,
-    "optimized_resume_latex": "full latex string",
+    "optimized_resume_latex": "exact latex string mapped from the Backend template",
     "added_keywords": [],
     "removed_keywords": [],
     "ats_tips": [],
@@ -92,14 +93,30 @@ async def optimize_resumes(
     genai_text = extract_text_from_pdf(await resume_genai.read())
     backend_text = extract_text_from_pdf(await resume_backend.read())
 
+    # Load templates
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    try:
+        with open(os.path.join(base_dir, "template_genai.tex"), "r", encoding="utf-8") as f:
+            template_genai = f.read()
+        with open(os.path.join(base_dir, "template_backend.tex"), "r", encoding="utf-8") as f:
+            template_backend = f.read()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to load LaTeX templates: {str(e)}")
+
     # Format the prompt
     user_message = f"""Here are the inputs:
 
---- Gen AI Resume ---
+--- Original Gen AI Resume Text ---
 {genai_text}
 
---- Backend Resume ---
+--- Original Backend Resume Text ---
 {backend_text}
+
+--- TARGET Gen AI LaTeX Template to Fill ---
+{template_genai}
+
+--- TARGET Backend LaTeX Template to Fill ---
+{template_backend}
 
 --- Job Description ---
 {job_description}

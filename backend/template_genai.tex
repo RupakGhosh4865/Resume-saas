@@ -1,0 +1,210 @@
+%------------------------
+% Ethan's Résumé Template
+% Author: necusjz
+% License: CC-BY-4.0
+%------------------------
+\documentclass[letterpaper,10pt]{article}
+\usepackage{fontawesome5}
+\usepackage{graphicx}
+\usepackage{latexsym}
+\usepackage[empty]{fullpage}
+\usepackage{titlesec}
+\usepackage{marvosym}
+\usepackage[usenames,dvipsnames]{color}
+\usepackage{verbatim}
+\usepackage{enumitem}
+\usepackage[colorlinks=true,urlcolor=blue]{hyperref}
+\usepackage{fancyhdr}
+\usepackage[english]{babel}
+\usepackage{tabularx}
+\usepackage{fontawesome5}
+\usepackage{ragged2e}
+\usepackage{etoolbox}
+\usepackage{tikz}
+\input{glyphtounicode}
+
+\definecolor{linkcolor}{RGB}{0, 0, 225} % Blue for links
+
+% font options
+\usepackage[sc]{mathpazo}
+\linespread{1.02}  % Proper line spacing
+\usepackage[T1]{fontenc}
+
+\pagestyle{fancy}
+\fancyhf{}  % clear all header and footer fields
+\fancyfoot{}
+\renewcommand{\headrulewidth}{0pt}
+\renewcommand{\footrulewidth}{0pt}
+
+% adjust margins - balanced approach
+\addtolength{\oddsidemargin}{-0.6in}
+\addtolength{\evensidemargin}{-0.6in}
+\addtolength{\textwidth}{1.2in}
+\addtolength{\topmargin}{-0.6in}
+\addtolength{\textheight}{1.3in}
+
+\urlstyle{same}
+
+\raggedbottom
+\raggedright
+\setlength{\tabcolsep}{0in}
+\setlength{\footskip}{4pt}
+
+% sections formatting - clean and readable
+\titleformat{\section}{
+  \vspace{-4pt}\scshape\raggedright\large
+}{}{0em}{}[\color{black}\titlerule \vspace{-5pt}]
+
+% ensure that generate pdf is machine readable/ATS parsable
+\pdfgentounicode=1
+
+% custom commands - fixed spacing
+\newcommand{\cvitem}[1]{
+  \item\small{
+    {#1 \vspace{-2pt}}
+  }
+}
+
+\newcommand{\cvheading}[4]{
+  \vspace{-2pt}\item
+    \begin{tabular*}{\textwidth}[t]{l@{\extracolsep{\fill}}r}
+      \textbf{#1} & #2 \\
+      \small#3 & \small #4 \\
+    \end{tabular*}\vspace{-5pt}
+}
+
+\newcommand{\cvheadingstart}{\begin{itemize}[leftmargin=0in, label={}]}
+\newcommand{\cvheadingend}{\end{itemize}}
+\newcommand{\cvitemstart}{\begin{itemize}[leftmargin=0.15in]}
+\newcommand{\cvitemend}{\end{itemize}\vspace{-5pt}}
+
+\renewcommand\labelitemii{$\vcenter{\hbox{\footnotesize$\bullet$}}$}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=blue,
+  urlcolor=blue
+}
+
+\begin{document}
+
+% contact information
+\begin{center}
+  \textbf{\LARGE\scshape RUPAK GHOSH} \\
+  \vspace{4pt}
+   
+  \faMobile* (+91) 6909524809 \quad
+  \faMapMarker* Lucknow, India
+
+  \vspace{3pt}
+  
+   \href{mailto:rupak4865@gmail.com}{rupak4865@gmail.com \faEnvelope} \quad
+  \href{https://github.com/RupakGhosh4865}{GitHub: \faGithub} \quad
+  \href{https://www.linkedin.com/in/rupak-ghosh-949258244/}{LinkedIn: \faLinkedin} \quad
+   \href{https://rupakghosh.vercel.app/}{Portfolio: \faMobile}
+\end{center}
+
+\vspace{-8pt}
+
+\section{Education}
+\cvheadingstart
+  \cvheading
+    {Institute Of Engineering And Technology}{Lucknow, Uttar Pradesh}
+    {Bachelor Of Technology : COMPUTER SCIENCE AND ENGINEERING : CGPA 7.5}{2021 - 2025}
+   \cvheading
+    {Kendriya Vidyala Kunjaban No.1 Agartala}{Agartala, Tripura}
+    {Intermediate: 81\%}{2021}
+\cvheadingend
+
+\vspace{-9pt}
+
+\section*{Experience}
+\cvheadingstart
+
+\cvitem{\textbf{Backend Developer Intern, Job Alchemy} \href{https://jobalchemy.vercel.app/}{(view \faExternalLink*)} \hfill {(Nov'24 - March'25)}}
+\cvitemstart
+\cvitem{Developed a Chrome extension for automating job applications using RESTful APIs and OpenAI prompts for generating personalized resumes.}
+\cvitem{Implemented AI-driven automation to enable one-click job applications, reducing manual effort by 70\%.}
+\cvitem{Integrated OpenAI's GPT models to dynamically generate CVs tailored to job descriptions.}
+\cvitemend
+
+\cvitem{\textbf{Backend Developer Intern, Sales Up} \href{https://salesup.club/}{(view \faExternalLink*)}\hfill {(Nov'24 - Jan'25)}}
+\cvitemstart
+\cvitem{Built a lead generation system using RESTful APIs and integrated Google Docs with Gmail for automated email generation using n8n.}
+\cvitem{Developed no-code websites using Bubble.io, enabling rapid prototyping and deployment.}
+\cvitem{Optimized email workflows, reducing lead response time by 50\%.}
+\cvitemend
+
+\cvheadingend
+
+\vspace{-9pt}
+
+\section*{Projects}
+\cvheadingstart
+
+\cvitem{\textbf{DIFFICULT-AIRWAY-ASSESSMENT} \href{https://drive.google.com/file/d/1sULxnZs76b40OyWZwKwSuOMdOuckTRt8/view?usp=drive_link}{\textcolor{linkcolor}{[Report]}} 
+\href{https://github.com/RupakGhosh4865/Difficult_AirwayAssesment}{\textcolor{linkcolor}{[GitHub]}}
+\hfill{Mar 2025}}
+\cvitemstart
+\cvitem{$\diamond$ Built and trained a ResNet18-based deep learning model achieving 94.7\% overall accuracy, 100\% recall for difficult airway cases, and an F1-score of 90.9\% on a test set of 19 clinical images.}
+\cvitem{$\diamond$ Engineered a Streamlit AI app for airway assessment with 90\% validation accuracy using 3-position image input.}
+\cvitem{\textbf{Tech Used}: Python, Streamlit, PyTorch, ResNet18, Data Augmentation, Matplotlib, Scikit-learn}
+\cvitemend
+
+\cvitem{\textbf{ONEBOX EMAIL APP}
+\href{https://rich-one-email.netlify.app/}{\textcolor{linkcolor}{[Live]}} 
+\href{https://github.com/RupakGhosh4865/Rich-Onebox-for-Emails}{\textcolor{linkcolor}{[GitHub]}}
+\hfill{July 2025}}
+\cvitemstart
+\cvitem{$\diamond$ Built a production-ready email aggregator handling 2+ IMAP accounts with real-time sync (IDLE mode), indexing 30+ days of emails into Elasticsearch for lightning-fast querying.}
+\cvitem{$\diamond$ Integrated AI-based classification using Hugging Face zero-shot models with 5-category tagging and automated Slack/webhook alerts for "Interested" emails.}
+\cvitem{\textbf{Tech Used}: Node.js, TypeScript, React, Prisma, PostgreSQL, Elasticsearch, Docker, LangChain, ChromaDB, Hugging Face, Slack API}
+\cvitemend
+
+\cvitem{\textbf{RAG APP Youtube-Transcriptor}
+\href{https://github.com/RupakGhosh4865/RAG_APP-Youtube_Transcriptor-}{\textcolor{linkcolor}{[GitHub]}}
+\hfill{June 2025}}
+\cvitemstart
+\cvitem{$\diamond$ Built a scalable RAG pipeline that converts YouTube videos into interactive Q\&A systems by extracting transcripts, embedding content, and querying with Gemini LLM.}
+\cvitem{$\diamond$ Developed an interactive Streamlit web app allowing users to query video content in real-time with language understanding powered by Google Gemini API.}
+\cvitem{\textbf{Tech Used}: Python, Streamlit, Google Gemini API, FAISS, LangChain, YouTubeTranscriptAPI}
+\cvitemend
+
+\cvitem{\textbf{Outfit-Builder APP}
+\href{https://github.com/RupakGhosh4865/Outfit_builder}{\textcolor{linkcolor}{[Github]}}  
+\hfill{June 2025}}
+\cvitemstart
+\cvitem{$\diamond$ Designed a drag-and-drop canvas interface for real-time outfit building with smart item sequencing and dynamic category filtering.}
+\cvitem{$\diamond$ Implemented secure authentication, MongoDB-based cart storage, and responsive UX optimized for both mobile and desktop users.}
+\cvitem{\textbf{Tech Used}: Next.js 14, React 18, TypeScript, Tailwind CSS, MongoDB Atlas, NextAuth}
+\cvitemend
+
+\cvheadingend
+
+\vspace{-9pt}
+
+\section*{Technical Skills}
+\vspace{-2pt}
+\begin{tabular}{@{} >{\bfseries}l @{\hspace{4ex}} l @{}}
+Core AI/ML: & PyTorch | Transformers | OpenAI API | Google Gemini | LangChain | RAG \\
+AI Libraries: & Hugging Face | NumPy | Pandas | Scikit-learn | Matplotlib \\
+Vector Databases: & ChromaDB | FAISS | Redis | ElasticSearch | PrismaDB \\
+LLM Tools: & Prompt Engineering | Fine-tuning | Embeddings | SentenceTransformers \\
+Programming: & Python | SQL | JavaScript | TypeScript | C++ \\
+Frameworks: & Next.js | React | FastAPI | Flask | Streamlit | Tailwind CSS \\
+Cloud \& Infra: & Docker | AWS (EC2/S3) | n8n | Hugging Face Spaces \\
+Tools: & Git | GitHub | Postman | VSCode | Cursor | V0.dev | GoogleColab | Bubble.io \\
+Concepts: & Deep Learning (CNN) | Computer Vision | Data Structures \\
+\end{tabular}
+
+\vspace{-2pt}
+
+\section*{Professional Skills}
+\vspace{-2pt}
+\begin{itemize}[noitemsep, topsep=2pt, leftmargin=0.15in]
+  \item \textbf{Research}: Collaborated with KGMU Hospital on AI-based airway assessment research using ResNet18; achieved 94.7\% accuracy and documented findings in a technical report. \href{https://drive.google.com/file/d/1sULxnZs76b40OyWZwKwSuOMdOuckTRt8/view?usp=drive_link}{\textcolor{linkcolor}{[Report]}} 
+  \item \textbf{Problem Solving}: Top 10\% in CodeChef competitions (Global Rank 358)
+  \item \textbf{Leadership}: Hackathon team lead Medecro.ai 2024 - Top 10 among 1,600 teams \href{https://drive.google.com/file/d/18becaaeP6snzd1TeXW10usLLK0kVPrZ9/view?usp=drive_link}{(view \faExternalLink*)}
+\end{itemize}
+
+\end{document}

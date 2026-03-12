@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Upload, FileText, CheckCircle, XCircle, Copy, AlertCircle, ArrowRight } from 'lucide-react';
+import { Upload, FileText, CheckCircle, XCircle, Copy, AlertCircle, ArrowRight, Download } from 'lucide-react';
 import clsx from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
@@ -67,6 +67,16 @@ function App() {
   const copyToClipboard = (text) => {
     navigator.clipboard.writeText(text);
     alert("LaTeX code copied!");
+  };
+
+  const downloadFile = (text, filename) => {
+    const element = document.createElement("a");
+    const file = new Blob([text], {type: 'text/plain'});
+    element.href = URL.createObjectURL(file);
+    element.download = filename;
+    document.body.appendChild(element); // Required for FireFox
+    element.click();
+    document.body.removeChild(element);
   };
 
   const renderResultColumn = (title, data) => {
@@ -151,13 +161,22 @@ function App() {
         <div className="flex-1 flex flex-col min-h-[300px]">
           <div className="flex justify-between items-center mb-2">
             <h3 className="text-sm font-semibold text-slate-300">Optimized LaTeX</h3>
-            <button 
-              onClick={() => copyToClipboard(data.optimized_resume_latex)}
-              className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded-lg transition-colors border border-slate-700"
-            >
-              <Copy className="w-3 h-3" />
-              Copy Code
-            </button>
+            <div className="flex gap-2">
+              <button 
+                onClick={() => downloadFile(data.optimized_resume_latex, `${title.replace(/\s+/g, '_')}_Optimized.tex`)}
+                className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded-lg transition-colors border border-slate-700"
+              >
+                <Download className="w-3 h-3" />
+                Download .tex
+              </button>
+              <button 
+                onClick={() => copyToClipboard(data.optimized_resume_latex)}
+                className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded-lg transition-colors border border-slate-700"
+              >
+                <Copy className="w-3 h-3" />
+                Copy Code
+              </button>
+            </div>
           </div>
           <textarea
             readOnly
