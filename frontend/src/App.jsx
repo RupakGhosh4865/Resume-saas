@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Upload, FileText, CheckCircle, XCircle, Copy, AlertCircle, ArrowRight, Download } from 'lucide-react';
+import { Upload, FileText, CheckCircle, XCircle, Copy, AlertCircle, ArrowRight, Download, FileType } from 'lucide-react';
 import clsx from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
@@ -14,6 +14,7 @@ function App() {
   const [isOptimizing, setIsOptimizing] = useState(false);
   const [results, setResults] = useState(null);
   const [error, setError] = useState(null);
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(null); // stores the title of the resume being compiled
 
   const handleFileChange = (setter) => (e) => {
     const file = e.target.files?.[0];
@@ -77,6 +78,39 @@ function App() {
     document.body.appendChild(element); // Required for FireFox
     element.click();
     document.body.removeChild(element);
+  };
+
+  const downloadPDF = async (latexCode, filename) => {
+    setIsGeneratingPdf(filename);
+    try {
+      // We use latex.online which is a free service to compile LaTeX
+      // We'll use a POST request to handle large LaTeX strings
+      const response = await fetch('https://latex.online/compile?command=pdflatex', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          text: latexCode
+        }),
+      });
+
+      if (!response.ok) throw new Error("PDF compilation failed");
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (err) {
+      alert("PDF Generation Failed. You can still download the .tex file and compile it on Overleaf.");
+      console.error(err);
+    } finally {
+      setIsGeneratingPdf(null);
+    }
   };
 
   const renderResultColumn = (title, data) => {
@@ -161,7 +195,19 @@ function App() {
         <div className="flex-1 flex flex-col min-h-[300px]">
           <div className="flex justify-between items-center mb-2">
             <h3 className="text-sm font-semibold text-slate-300">Optimized LaTeX</h3>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
+              <button 
+                onClick={() => downloadPDF(data.optimized_resume_latex, `${title.replace(/\s+/g, '_')}_Optimized.pdf`)}
+                disabled={isGeneratingPdf === `${title.replace(/\s+/g, '_')}_Optimized.pdf`}
+                className="flex items-center gap-1.5 text-xs text-white bg-blue-600 hover:bg-blue-500 px-3 py-1.5 rounded-lg transition-colors border border-blue-500 shadow-lg shadow-blue-500/20 disabled:opacity-50"
+              >
+                {isGeneratingPdf === `${title.replace(/\s+/g, '_')}_Optimized.pdf` ? (
+                  <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                ) : (
+                  <FileType className="w-3 h-3" />
+                )}
+                Download PDF
+              </button>
               <button 
                 onClick={() => downloadFile(data.optimized_resume_latex, `${title.replace(/\s+/g, '_')}_Optimized.tex`)}
                 className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded-lg transition-colors border border-slate-700"
