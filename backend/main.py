@@ -7,9 +7,33 @@ from pydantic import BaseModel
 from langchain_huggingface import HuggingFaceEndpoint
 from dotenv import load_dotenv
 
+import sqlite3
+from datetime import datetime
+
 load_dotenv()
 
 app = FastAPI(title="AI Resume Optimizer API")
+
+# Database Setup
+DB_PATH = "resume_history.db"
+
+def init_db():
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp DATETIME,
+            job_description TEXT,
+            match_score_genai INTEGER,
+            match_score_backend INTEGER,
+            data_json TEXT
+        )
+    ''')
+    conn.commit()
+    conn.close()
+
+init_db()
 
 # Allow all origins for dev
 app.add_middleware(
@@ -98,13 +122,23 @@ async def optimize_resumes(
     genai_text = extract_text_from_pdf(await resume_genai.read())
     backend_text = extract_text_from_pdf(await resume_backend.read())
 
-    # Load templates
+    # Load and optimize templates to minimize token generation
+    def minify_latex(text: str) -> str:
+        import re
+        # Remove comments (lines starting with %)
+        text = re.sub(r'(?m)^%.*$', '', text)
+        # Remove inline comments (not escaped %)
+        text = re.sub(r'(?<!\\)%.*$', '', text)
+        # Remove excessive whitespace
+        text = re.sub(r'\n\s*\n', '\n', text)
+        return text.strip()
+
     base_dir = os.path.dirname(os.path.abspath(__file__))
     try:
         with open(os.path.join(base_dir, "template_genai.tex"), "r", encoding="utf-8") as f:
-            template_genai = f.read()
+            template_genai = minify_latex(f.read())
         with open(os.path.join(base_dir, "template_backend.tex"), "r", encoding="utf-8") as f:
-            template_backend = f.read()
+            template_backend = minify_latex(f.read())
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to load LaTeX templates: {str(e)}")
 
@@ -156,14 +190,56 @@ async def optimize_resumes(
             
         content = content.strip()
 
+        # Save to DB
+        try:
+            conn = sqlite3.connect(DB_PATH)
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT INTO history (timestamp, job_description, match_score_genai, match_score_backend, data_json)
+                VALUES (?, ?, ?, ?, ?)
+            ''', (
+                datetime.now().isoformat(),
+                job_description,
+                parsed_json.get("resume_genai", {}).get("match_score", 0),
+                parsed_json.get("resume_backend", {}).get("match_score", 0),
+                content
+            ))
+            conn.commit()
+            conn.close()
+        except Exception as db_err:
+            print(f"Database error: {db_err}")
+
         # Try to parse to validate it's proper JSON before returning to standard
-        parsed_json = json.loads(content)
         return parsed_json
 
     except json.JSONDecodeError as decode_err:
         raise HTTPException(status_code=500, detail=f"LLM returned invalid JSON. Raw output: {content}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"LLM Processing Failed: {str(e)}")
+
+@app.get("/api/history")
+async def get_history():
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM history ORDER BY timestamp DESC LIMIT 20")
+        rows = cursor.fetchall()
+        conn.close()
+        
+        result = []
+        for row in rows:
+            result.append({
+                "id": row["id"],
+                "timestamp": row["timestamp"],
+                "job_description": row["job_description"],
+                "match_score_genai": row["match_score_genai"],
+                "match_score_backend": row["match_score_backend"],
+                "data": json.loads(row["data_json"])
+            })
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch history: {str(e)}")
 
 import requests
 from fastapi.responses import StreamingResponse
