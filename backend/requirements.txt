@@ -1,7 +1,9 @@
 fastapi
 uvicorn
-langchain-google-genai
 pydantic
 PyMuPDF
 python-multipart
 python-dotenv
+groq
+requests
+langchain-huggingface

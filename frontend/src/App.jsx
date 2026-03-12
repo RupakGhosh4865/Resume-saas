@@ -149,19 +149,33 @@ function App() {
     alert("LaTeX code copied!");
   };
 
-  const downloadPDF = async (content, filename) => {
+  const downloadFile = (text, filename) => {
+    const element = document.createElement("a");
+    const file = new Blob([text], {type: 'text/plain'});
+    element.href = URL.createObjectURL(file);
+    element.download = filename;
+    document.body.appendChild(element); // Required for FireFox
+    element.click();
+    document.body.removeChild(element);
+  };
+
+  const downloadPDF = async (latexCode, filename) => {
     setIsGeneratingPdf(filename);
     try {
-      const response = await fetch('http://localhost:8002/api/generate-pdf', {
+      // Use our backend proxy to avoid CORS issues with latex.online
+      const response = await fetch('http://localhost:8002/api/compile-pdf', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(content),
+        body: JSON.stringify({
+          latex_code: latexCode
+        }),
       });
 
       if (!response.ok) {
-        throw new Error("PDF generation failed");
+        const errData = await response.json();
+        throw new Error(errData.detail || "PDF compilation failed");
       }
 
       const blob = await response.blob();
@@ -173,100 +187,11 @@ function App() {
       link.click();
       document.body.removeChild(link);
     } catch (err) {
-      alert(`PDF Generation Failed: ${err.message}`);
+      alert(`PDF Generation Failed: ${err.message}. You can still download the .tex file and compile it on Overleaf.`);
       console.error(err);
     } finally {
       setIsGeneratingPdf(null);
     }
-  };
-
-  const ResumePreview = ({ content }) => {
-    if (!content) return null;
-    return (
-      <div className="bg-white text-slate-900 p-8 rounded-xl shadow-2xl font-serif max-h-[800px] overflow-y-auto w-full max-w-[800px] mx-auto space-y-6">
-        {/* Header */}
-        <div className="text-center border-b-2 border-slate-200 pb-4">
-          <h1 className="text-2xl font-bold uppercase tracking-wide">{content.full_name}</h1>
-          <div className="text-xs text-slate-600 mt-1 space-x-2">
-            <span>{content.contact?.email}</span>
-            <span>•</span>
-            <span>{content.contact?.phone}</span>
-            <span>•</span>
-            <span>{content.contact?.location}</span>
-          </div>
-          <div className="text-[10px] text-blue-600 mt-1 uppercase font-bold tracking-tighter">
-            {content.contact?.linkedin} | {content.contact?.github}
-          </div>
-        </div>
-
-        {/* Summary */}
-        <div className="space-y-2">
-          <h2 className="text-sm font-bold uppercase border-b border-slate-300 text-slate-700">Professional Summary</h2>
-          <p className="text-xs leading-relaxed italic">{content.summary}</p>
-        </div>
-
-        {/* Experience */}
-        <div className="space-y-4">
-          <h2 className="text-sm font-bold uppercase border-b border-slate-300 text-slate-700">Professional Experience</h2>
-          {content.experience?.map((exp, i) => (
-            <div key={i} className="space-y-1">
-              <div className="flex justify-between items-baseline font-bold text-xs">
-                <span>{exp.role} at {exp.company}</span>
-                <span className="italic font-normal">{exp.duration}</span>
-              </div>
-              <ul className="list-disc list-inside space-y-0.5">
-                {exp.points?.map((pt, j) => (
-                  <li key={j} className="text-[11px] leading-tight text-slate-700">{pt}</li>
-                ))}
-              </ul>
-            </div>
-          ))}
-        </div>
-
-        {/* Projects */}
-        <div className="space-y-4">
-          <h2 className="text-sm font-bold uppercase border-b border-slate-300 text-slate-700">Key Projects</h2>
-          {content.projects?.map((proj, i) => (
-            <div key={i} className="space-y-1">
-              <div className="flex justify-between items-baseline font-bold text-xs">
-                <span>{proj.title}</span>
-                <span className="italic font-normal text-[10px]">{proj.tech}</span>
-              </div>
-              <ul className="list-disc list-inside space-y-0.5">
-                {proj.points?.map((pt, j) => (
-                  <li key={j} className="text-[11px] leading-tight text-slate-700">{pt}</li>
-                ))}
-              </ul>
-            </div>
-          ))}
-        </div>
-
-        {/* Skills */}
-        <div className="space-y-2">
-          <h2 className="text-sm font-bold uppercase border-b border-slate-300 text-slate-700">Technical Skills</h2>
-          <div className="text-[11px] space-y-1">
-            <p><span className="font-bold">Languages:</span> {content.skills?.languages?.join(', ')}</p>
-            <p><span className="font-bold">Frameworks:</span> {content.skills?.frameworks?.join(', ')}</p>
-            <p><span className="font-bold">Tools:</span> {content.skills?.tools?.join(', ')}</p>
-          </div>
-        </div>
-
-        {/* Education */}
-        <div className="space-y-2">
-          <h2 className="text-sm font-bold uppercase border-b border-slate-300 text-slate-700">Education</h2>
-          {content.education?.map((edu, i) => (
-            <div key={i} className="text-xs">
-              <div className="flex justify-between items-baseline font-bold">
-                <span>{edu.institution}</span>
-                <span className="italic font-normal">{edu.duration}</span>
-              </div>
-              <p className="italic text-[11px]">{edu.degree}</p>
-              {edu.details && <p className="text-[10px] text-slate-600 italic">Expected: {edu.details}</p>}
-            </div>
-          ))}
-        </div>
-      </div>
-    );
   };
 
   const renderResultColumn = (title, data) => {
@@ -282,15 +207,6 @@ function App() {
               {data.match_score}%
             </span>
           </div>
-        </div>
-
-        {/* Live CV Preview */}
-        <div className="space-y-4">
-          <h3 className="text-sm font-semibold text-slate-300 flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-yellow-400" />
-            Live CV Preview
-          </h3>
-          <ResumePreview content={data.content} />
         </div>
 
         {/* Keywords */}
@@ -395,26 +311,44 @@ function App() {
           </div>
         </div>
 
-        {/* PDF Download Area */}
-        <div className="flex-1 flex flex-col items-center justify-center py-10 bg-slate-900/50 rounded-2xl border-2 border-dashed border-slate-700 hover:border-blue-500/50 transition-all group">
-          <div className="bg-blue-500/10 p-4 rounded-3xl mb-4 group-hover:scale-110 transition-transform">
-            <FileType className="w-10 h-10 text-blue-400" />
+        {/* LaTeX Output */}
+        <div className="flex-1 flex flex-col min-h-[300px]">
+          <div className="flex justify-between items-center mb-2">
+            <h3 className="text-sm font-semibold text-slate-300">Optimized LaTeX</h3>
+            <div className="flex flex-wrap gap-2">
+              <button 
+                onClick={() => downloadPDF(data.optimized_resume_latex, `${title.replace(/\s+/g, '_')}_Optimized.pdf`)}
+                disabled={isGeneratingPdf === `${title.replace(/\s+/g, '_')}_Optimized.pdf`}
+                className="flex items-center gap-1.5 text-xs text-white bg-blue-600 hover:bg-blue-500 px-3 py-1.5 rounded-lg transition-colors border border-blue-500 shadow-lg shadow-blue-500/20 disabled:opacity-50"
+              >
+                {isGeneratingPdf === `${title.replace(/\s+/g, '_')}_Optimized.pdf` ? (
+                  <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                ) : (
+                  <FileType className="w-3 h-3" />
+                )}
+                Download PDF
+              </button>
+              <button 
+                onClick={() => downloadFile(data.optimized_resume_latex, `${title.replace(/\s+/g, '_')}_Optimized.tex`)}
+                className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded-lg transition-colors border border-slate-700"
+              >
+                <Download className="w-3 h-3" />
+                Download .tex
+              </button>
+              <button 
+                onClick={() => copyToClipboard(data.optimized_resume_latex)}
+                className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded-lg transition-colors border border-slate-700"
+              >
+                <Copy className="w-3 h-3" />
+                Copy Code
+              </button>
+            </div>
           </div>
-          <h3 className="text-xl font-bold text-white mb-2">High-ATS Optimized Resume</h3>
-          <p className="text-sm text-slate-400 mb-6 text-center px-6">Your resume has been structured and formatted to pass 99% of modern ATS systems. Download your ready-to-use PDF below.</p>
-          
-          <button 
-            onClick={() => downloadPDF(data.content, `${title.replace(/\s+/g, '_')}_Optimized.pdf`)}
-            disabled={isGeneratingPdf === `${title.replace(/\s+/g, '_')}_Optimized.pdf`}
-            className="flex items-center gap-3 text-lg font-bold text-white bg-blue-600 hover:bg-blue-500 px-10 py-4 rounded-2xl transition-all shadow-xl shadow-blue-500/20 disabled:opacity-50"
-          >
-            {isGeneratingPdf === `${title.replace(/\s+/g, '_')}_Optimized.pdf` ? (
-              <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-            ) : (
-              <Download className="w-5 h-5" />
-            )}
-            Download Professional PDF
-          </button>
+          <textarea
+            readOnly
+            value={data.optimized_resume_latex}
+            className="flex-1 w-full bg-slate-950 text-slate-300 text-xs font-mono p-4 rounded-xl border border-slate-800 focus:outline-none resize-none"
+          />
         </div>
       </div>
     );
