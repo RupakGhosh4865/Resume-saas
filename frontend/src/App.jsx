@@ -149,33 +149,19 @@ function App() {
     alert("LaTeX code copied!");
   };
 
-  const downloadFile = (text, filename) => {
-    const element = document.createElement("a");
-    const file = new Blob([text], {type: 'text/plain'});
-    element.href = URL.createObjectURL(file);
-    element.download = filename;
-    document.body.appendChild(element); // Required for FireFox
-    element.click();
-    document.body.removeChild(element);
-  };
-
-  const downloadPDF = async (latexCode, filename) => {
+  const downloadPDF = async (content, filename) => {
     setIsGeneratingPdf(filename);
     try {
-      // Use our backend proxy to avoid CORS issues with latex.online
-      const response = await fetch('http://localhost:8002/api/compile-pdf', {
+      const response = await fetch('http://localhost:8002/api/generate-pdf', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          latex_code: latexCode
-        }),
+        body: JSON.stringify(content),
       });
 
       if (!response.ok) {
-        const errData = await response.json();
-        throw new Error(errData.detail || "PDF compilation failed");
+        throw new Error("PDF generation failed");
       }
 
       const blob = await response.blob();
@@ -187,7 +173,7 @@ function App() {
       link.click();
       document.body.removeChild(link);
     } catch (err) {
-      alert(`PDF Generation Failed: ${err.message}. You can still download the .tex file and compile it on Overleaf.`);
+      alert(`PDF Generation Failed: ${err.message}`);
       console.error(err);
     } finally {
       setIsGeneratingPdf(null);
@@ -311,44 +297,26 @@ function App() {
           </div>
         </div>
 
-        {/* LaTeX Output */}
-        <div className="flex-1 flex flex-col min-h-[300px]">
-          <div className="flex justify-between items-center mb-2">
-            <h3 className="text-sm font-semibold text-slate-300">Optimized LaTeX</h3>
-            <div className="flex flex-wrap gap-2">
-              <button 
-                onClick={() => downloadPDF(data.optimized_resume_latex, `${title.replace(/\s+/g, '_')}_Optimized.pdf`)}
-                disabled={isGeneratingPdf === `${title.replace(/\s+/g, '_')}_Optimized.pdf`}
-                className="flex items-center gap-1.5 text-xs text-white bg-blue-600 hover:bg-blue-500 px-3 py-1.5 rounded-lg transition-colors border border-blue-500 shadow-lg shadow-blue-500/20 disabled:opacity-50"
-              >
-                {isGeneratingPdf === `${title.replace(/\s+/g, '_')}_Optimized.pdf` ? (
-                  <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                ) : (
-                  <FileType className="w-3 h-3" />
-                )}
-                Download PDF
-              </button>
-              <button 
-                onClick={() => downloadFile(data.optimized_resume_latex, `${title.replace(/\s+/g, '_')}_Optimized.tex`)}
-                className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded-lg transition-colors border border-slate-700"
-              >
-                <Download className="w-3 h-3" />
-                Download .tex
-              </button>
-              <button 
-                onClick={() => copyToClipboard(data.optimized_resume_latex)}
-                className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded-lg transition-colors border border-slate-700"
-              >
-                <Copy className="w-3 h-3" />
-                Copy Code
-              </button>
-            </div>
+        {/* PDF Download Area */}
+        <div className="flex-1 flex flex-col items-center justify-center py-10 bg-slate-900/50 rounded-2xl border-2 border-dashed border-slate-700 hover:border-blue-500/50 transition-all group">
+          <div className="bg-blue-500/10 p-4 rounded-3xl mb-4 group-hover:scale-110 transition-transform">
+            <FileType className="w-10 h-10 text-blue-400" />
           </div>
-          <textarea
-            readOnly
-            value={data.optimized_resume_latex}
-            className="flex-1 w-full bg-slate-950 text-slate-300 text-xs font-mono p-4 rounded-xl border border-slate-800 focus:outline-none resize-none"
-          />
+          <h3 className="text-xl font-bold text-white mb-2">High-ATS Optimized Resume</h3>
+          <p className="text-sm text-slate-400 mb-6 text-center px-6">Your resume has been structured and formatted to pass 99% of modern ATS systems. Download your ready-to-use PDF below.</p>
+          
+          <button 
+            onClick={() => downloadPDF(data.content, `${title.replace(/\s+/g, '_')}_Optimized.pdf`)}
+            disabled={isGeneratingPdf === `${title.replace(/\s+/g, '_')}_Optimized.pdf`}
+            className="flex items-center gap-3 text-lg font-bold text-white bg-blue-600 hover:bg-blue-500 px-10 py-4 rounded-2xl transition-all shadow-xl shadow-blue-500/20 disabled:opacity-50"
+          >
+            {isGeneratingPdf === `${title.replace(/\s+/g, '_')}_Optimized.pdf` ? (
+              <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+            ) : (
+              <Download className="w-5 h-5" />
+            )}
+            Download Professional PDF
+          </button>
         </div>
       </div>
     );
