@@ -30,3 +30,25 @@ This application takes two PDFs (a "Gen AI Resume" and a "Backend Developer Resu
 docker-compose up --build
 ```
 Navigate to `http://localhost:80` for the UI.
+
+## Deployment Guide
+
+### Backend: Render
+1. **GitHub Connection**: Connect your repository to Render.
+2. **Web Service Setup**:
+   - **Runtime**: `Python-3`
+   - **Build Command**: `pip install -r requirements.txt`
+   - **Start Command**: `uvicorn main:app --host 0.0.0.0 --port $PORT`
+3. **Environment Variables**:
+   - `GROQ_API_KEY`: Your Groq API key.
+4. **Persistence (Optional)**:
+   - Add a "Disk" mount at `/data` if you want persistent history. In `main.py`, change `DB_PATH` to `/data/resume_history.db`.
+
+### Frontend: Vercel
+1. **GitHub Connection**: Connect your repository to Vercel.
+2. **Project Settings**:
+   - **Root Directory**: `frontend`
+   - **Framework Preset**: `Vite` (automatically detected)
+3. **Environment Variables**:
+   - `VITE_API_BASE_URL`: The URL of your Render backend (e.g., `https://resume-backend.onrender.com`).
+4. **Build & Deploy**: Click Deploy!

@@ -7,6 +7,8 @@ function cn(...inputs) {
   return twMerge(clsx(inputs));
 }
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8002';
+
 function App() {
   const [genAiFile, setGenAiFile] = useState(null);
   const [backendFile, setBackendFile] = useState(null);
@@ -30,7 +32,7 @@ function App() {
 
   const fetchHistory = async () => {
     try {
-      const response = await fetch('http://localhost:8002/api/history');
+      const response = await fetch(`${API_BASE_URL}/api/history`);
       if (response.ok) {
         const data = await response.json();
         setHistory(data);
@@ -42,7 +44,7 @@ function App() {
 
   const fetchDefaults = async () => {
     try {
-      const response = await fetch('http://localhost:8002/api/get-defaults');
+      const response = await fetch(`${API_BASE_URL}/api/get-defaults`);
       if (response.ok) {
         const data = await response.json();
         setDefaultFiles(data);
@@ -62,7 +64,7 @@ function App() {
     if (backendFile) formData.append('resume_backend', backendFile);
 
     try {
-      const response = await fetch('http://localhost:8002/api/save-defaults', {
+      const response = await fetch(`${API_BASE_URL}/api/save-defaults`, {
         method: 'POST',
         body: formData,
       });
@@ -118,7 +120,7 @@ function App() {
     formData.append('job_description', jobDescription);
 
     try {
-      const response = await fetch('http://localhost:8002/api/optimize', {
+      const response = await fetch(`${API_BASE_URL}/api/optimize`, {
         method: 'POST',
         body: formData,
       });
@@ -163,7 +165,7 @@ function App() {
     setIsGeneratingPdf(filename);
     try {
       // Use our backend proxy to avoid CORS issues with latex.online
-      const response = await fetch('http://localhost:8002/api/compile-pdf', {
+      const response = await fetch(`${API_BASE_URL}/api/compile-pdf`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
