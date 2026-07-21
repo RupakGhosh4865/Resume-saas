@@ -4,7 +4,7 @@ from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import fitz  # PyMuPDF
 from pydantic import BaseModel
-from langchain_huggingface import HuggingFaceEndpoint
+from typing import Optional
 from dotenv import load_dotenv
 
 import sqlite3
@@ -117,7 +117,6 @@ Your job:
 - Remove irrelevant skills that hurt ATS ranking for this specific role.
 - Give a match score out of 100.
 - Suggest 2 specific projects the candidate should build to get shortlisted for this exact role — be very specific with tech stack, what to build, and exactly why it matches the JD.
-- **NEW**: For EACH resume category, write a professional, formal **Cover Letter** (approx. 250-300 words) and a **Recruitment Email** (meant for HR/Hiring Manager). These should describe the candidate's expertise, why they are willing to join the company, and how they add specific value based on the JD. Use a polite, confident, and persuasive tone.
 
 Respond ONLY with a valid JSON object. No markdown, no explanation outside JSON.
 Use this exact structure:
@@ -128,9 +127,7 @@ Use this exact structure:
     "added_keywords": ["kw1"],
     "removed_keywords": ["kw2"],
     "ats_tips": ["tip1"],
-    "project_suggestions": [{ "title": "t1", "description": "d1", "why_selected": "w1" }],
-    "cover_letter": "The full text of the professional cover letter",
-    "application_email": "The full text of the recruitment email"
+    "project_suggestions": [{ "title": "t1", "description": "d1", "why_selected": "w1" }]
   },
   "resume_backend": {
     "match_score": number,
@@ -138,9 +135,7 @@ Use this exact structure:
     "added_keywords": [],
     "removed_keywords": [],
     "ats_tips": [],
-    "project_suggestions": [{ "title": "", "description": "", "why_selected": "" }],
-    "cover_letter": "The full text of the professional cover letter",
-    "application_email": "The full text of the recruitment email"
+    "project_suggestions": [{ "title": "", "description": "", "why_selected": "" }]
   }
 }
 """
@@ -286,6 +281,265 @@ async def optimize_resumes(
         raise HTTPException(status_code=500, detail=f"LLM returned invalid JSON. Raw output: {content}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"LLM Processing Failed: {str(e)}")
+
+class OptimizeForJobRequest(BaseModel):
+    job_description: str
+
+@app.post("/api/optimize-for-job")
+async def optimize_for_job(req: OptimizeForJobRequest):
+    """
+    Optimizes resumes against a job description using saved default resumes.
+    Called by the Node.js outreach server — no PDF upload needed.
+    Returns match scores and compiled LaTeX for both resumes;
+    caller picks the winner.
+    """
+    groq_api_key = os.environ.get("GROQ_API_KEY")
+    if not groq_api_key:
+        raise HTTPException(status_code=500, detail="GROQ_API_KEY is not set in .env")
+
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, text_content FROM defaults WHERE id IN ('genai', 'backend')")
+    rows = {row[0]: row[1] for row in cursor.fetchall()}
+    conn.close()
+
+    if "genai" not in rows or "backend" not in rows:
+        raise HTTPException(
+            status_code=400,
+            detail="Default resumes not set. Please upload both resumes in the Resume Optimizer first."
+        )
+
+    genai_text = rows["genai"]
+    backend_text = rows["backend"]
+
+    def minify_latex(text: str) -> str:
+        import re
+        text = re.sub(r'(?m)^%.*$', '', text)
+        text = re.sub(r'(?<!\\)%.*$', '', text)
+        text = re.sub(r'\n\s*\n', '\n', text)
+        return text.strip()
+
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    try:
+        with open(os.path.join(base_dir, "template_genai.tex"), "r", encoding="utf-8") as f:
+            template_genai = minify_latex(f.read())
+        with open(os.path.join(base_dir, "template_backend.tex"), "r", encoding="utf-8") as f:
+            template_backend = minify_latex(f.read())
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to load LaTeX templates: {str(e)}")
+
+    user_message = f"""Here are the inputs:
+
+--- Original Gen AI Resume Text ---
+{genai_text}
+
+--- Original Backend Resume Text ---
+{backend_text}
+
+--- TARGET Gen AI LaTeX Template to Fill ---
+{template_genai}
+
+--- TARGET Backend LaTeX Template to Fill ---
+{template_backend}
+
+--- Job Description ---
+{req.job_description}
+"""
+
+    from groq import Groq
+    try:
+        client = Groq(api_key=groq_api_key)
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT + "\n\nIMPORTANT: Your entire response must be a single raw JSON object. No markdown, no backticks, no explanation. Start with { and end with }."},
+                {"role": "user", "content": user_message}
+            ],
+            max_tokens=8000,
+            temperature=0.1,
+            response_format={"type": "json_object"}
+        )
+        content = response.choices[0].message.content.strip()
+        if content.startswith("```json"): content = content[7:]
+        if content.startswith("```"): content = content[3:]
+        if content.endswith("```"): content = content[:-3]
+        content = content.strip()
+        parsed_json = json.loads(content)
+
+        # Persist to history DB
+        try:
+            conn = sqlite3.connect(DB_PATH)
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT INTO history (timestamp, job_description, match_score_genai, match_score_backend, data_json)
+                VALUES (?, ?, ?, ?, ?)
+            ''', (
+                datetime.now().isoformat(),
+                req.job_description,
+                parsed_json.get("resume_genai", {}).get("match_score", 0),
+                parsed_json.get("resume_backend", {}).get("match_score", 0),
+                content
+            ))
+            conn.commit()
+            conn.close()
+        except Exception as db_err:
+            print(f"Database error: {db_err}")
+
+        return parsed_json
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=500, detail=f"LLM returned invalid JSON. Raw output: {content}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"LLM Processing Failed: {str(e)}")
+
+
+# ── Structured JSON resume (used by the Node pipeline; rendered to PDF by Puppeteer) ──
+
+JSON_RESUME_SYSTEM_PROMPT = """You are an expert ATS resume writer.
+
+You receive a candidate's existing resume text (and/or profile summary) plus a target job
+description. Rewrite the candidate's resume so it matches the job description as closely as
+honestly possible.
+
+Hard rules:
+- NEVER invent employers, job titles, degrees, dates or certifications that are not present in
+  the source material. You may rephrase, reorder, and re-emphasise existing content, and you may
+  surface skills implied by the candidate's projects.
+- Mirror the job description's vocabulary in the summary, skills and bullet points.
+- Every experience/project bullet starts with a strong verb and includes a metric where the source
+  material provides one.
+
+Respond ONLY with a single raw JSON object (no markdown, no backticks) in this exact shape:
+{
+  "match_score": 0-100,
+  "resume": {
+    "name": "", "title": "", "email": "", "phone": "", "location": "",
+    "links": [{"label": "LinkedIn", "url": ""}],
+    "summary": "2-3 sentence positioning statement targeted at this job",
+    "skills": [{"category": "Languages", "items": ["Python"]}],
+    "experience": [{"role": "", "company": "", "location": "", "start": "", "end": "", "bullets": [""]}],
+    "projects": [{"name": "", "tech": "", "bullets": [""]}],
+    "education": [{"degree": "", "school": "", "start": "", "end": "", "detail": ""}],
+    "certifications": [""]
+  },
+  "added_keywords": [""],
+  "removed_keywords": [""],
+  "ats_tips": [""],
+  "project_suggestions": [{"title": "", "description": "", "why_selected": ""}]
+}
+Omit any array you have no source material for — return it empty rather than fabricating."""
+
+
+class ResumeJsonRequest(BaseModel):
+    job_description: str
+    # Optional caller-supplied source material. When omitted we fall back to the
+    # saved default resumes; when neither exists we return a 400 with a clear detail.
+    resume_text: Optional[str] = None
+    profile_summary: Optional[str] = None
+    variant: Optional[str] = None  # 'genai' | 'backend' — which default to prefer
+
+
+def _load_default_resume_text(variant: Optional[str]) -> tuple[str, str]:
+    """Returns (text, source_label). Empty text when no defaults are saved."""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, text_content FROM defaults WHERE id IN ('genai', 'backend')")
+    rows = {row[0]: row[1] for row in cursor.fetchall()}
+    conn.close()
+
+    if variant and rows.get(variant):
+        return rows[variant], variant
+    for key in ("genai", "backend"):
+        if rows.get(key):
+            return rows[key], key
+    return "", "none"
+
+
+@app.post("/api/resume-json")
+async def resume_json(req: ResumeJsonRequest):
+    """
+    Build a structured, job-matched resume as JSON. The caller renders it to PDF.
+    Works from caller-supplied resume text, the saved default resumes, or a profile
+    summary — whichever is available.
+    """
+    groq_api_key = os.environ.get("GROQ_API_KEY")
+    if not groq_api_key:
+        raise HTTPException(status_code=500, detail="GROQ_API_KEY is not set in .env")
+
+    if not req.job_description or not req.job_description.strip():
+        raise HTTPException(status_code=400, detail="job_description is required.")
+
+    source_text = (req.resume_text or "").strip()
+    source_label = "caller"
+    if not source_text:
+        source_text, source_label = _load_default_resume_text(req.variant)
+
+    profile_summary = (req.profile_summary or "").strip()
+
+    if not source_text and not profile_summary:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "No resume source available. Upload a resume on your profile, or set the "
+                "default resumes in the Resume Optimizer."
+            ),
+        )
+
+    user_message = f"""--- Candidate Resume Text ---
+{source_text or "(none provided)"}
+
+--- Candidate Profile Summary ---
+{profile_summary or "(none provided)"}
+
+--- Target Job Description ---
+{req.job_description}
+"""
+
+    from groq import Groq
+    content = ""
+    try:
+        client = Groq(api_key=groq_api_key)
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {"role": "system", "content": JSON_RESUME_SYSTEM_PROMPT},
+                {"role": "user", "content": user_message},
+            ],
+            max_tokens=8000,
+            temperature=0.1,
+            response_format={"type": "json_object"},
+        )
+        content = response.choices[0].message.content.strip()
+        if content.startswith("```json"): content = content[7:]
+        if content.startswith("```"): content = content[3:]
+        if content.endswith("```"): content = content[:-3]
+        parsed = json.loads(content.strip())
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=502, detail=f"LLM returned invalid JSON. Raw output: {content[:500]}")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"LLM processing failed: {str(e)}")
+
+    if not isinstance(parsed.get("resume"), dict):
+        raise HTTPException(status_code=502, detail="LLM response did not contain a 'resume' object.")
+
+    parsed["source"] = source_label
+
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO history (timestamp, job_description, match_score_genai, match_score_backend, data_json)"
+            " VALUES (?, ?, ?, ?, ?)",
+            (datetime.now().isoformat(), req.job_description, parsed.get("match_score", 0), 0, json.dumps(parsed)),
+        )
+        conn.commit()
+        conn.close()
+    except Exception as db_err:
+        print(f"Database error: {db_err}")
+
+    return parsed
+
 
 @app.get("/api/history")
 async def get_history():
