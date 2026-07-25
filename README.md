@@ -40,9 +40,15 @@ Navigate to `http://localhost:80` for the UI.
    - **Build Command**: `pip install -r requirements.txt`
    - **Start Command**: `uvicorn main:app --host 0.0.0.0 --port $PORT`
 3. **Environment Variables**:
-   - `GROQ_API_KEY`: Your Groq API key.
-4. **Persistence (Optional)**:
-   - Add a "Disk" mount at `/data` if you want persistent history. In `main.py`, change `DB_PATH` to `/data/resume_history.db`.
+   - `OPENAI_API_KEY`: your OpenAI API key.
+   - `OPENAI_MODEL_QUALITY` (optional): defaults to `gpt-4o`.
+   - `OPTIMIZER_ALLOWED_ORIGINS`: comma-separated origins allowed to call this
+     service. It is internal — normally just the Node API's URL.
+   - `DB_PATH`: absolute path to the SQLite file (see Persistence below).
+4. **Persistence**:
+   - Add a "Disk" mount at `/data` and set `DB_PATH=/data/resume_history.db`.
+     Without this the database — including every user's saved default resumes —
+     is lost on each redeploy.
 
 ### Frontend: Vercel
 1. **GitHub Connection**: Connect your repository to Vercel.

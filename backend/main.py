@@ -14,8 +14,62 @@ load_dotenv()
 
 app = FastAPI(title="AI Resume Optimizer API")
 
-# Database Setup
-DB_PATH = "resume_history.db"
+# ── LLM ──────────────────────────────────────────────────────────────────────
+# Model tiers are env-overridable so they can be upgraded without a code change.
+OPENAI_MODEL = os.environ.get("OPENAI_MODEL_QUALITY", "gpt-4o")
+
+
+def _openai_client():
+    """Build the client, failing with a message that says what to do about it."""
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="OPENAI_API_KEY is not set in .env")
+    from openai import OpenAI
+    return OpenAI(api_key=api_key, timeout=120.0, max_retries=2)
+
+
+def _strip_fences(content: str) -> str:
+    content = content.strip()
+    if content.startswith("```json"):
+        content = content[7:]
+    if content.startswith("```"):
+        content = content[3:]
+    if content.endswith("```"):
+        content = content[:-3]
+    return content.strip()
+
+
+def complete_json(system_prompt: str, user_message: str, max_tokens: int = 8000,
+                  temperature: float = 0.1) -> dict:
+    """
+    One JSON completion, with the parse and the error handling in a single place
+    rather than repeated at every call site.
+    """
+    client = _openai_client()
+    content = ""
+    try:
+        response = client.chat.completions.create(
+            model=OPENAI_MODEL,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_message},
+            ],
+            max_tokens=max_tokens,
+            temperature=temperature,
+            response_format={"type": "json_object"},
+        )
+        content = response.choices[0].message.content or ""
+        return json.loads(_strip_fences(content))
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=502, detail=f"LLM returned invalid JSON. Raw output: {content[:500]}")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"LLM processing failed: {str(e)}")
+
+# Database Setup. Overridable so the container can point it at a mounted volume
+# — a relative path inside the image is lost on every redeploy.
+DB_PATH = os.environ.get("DB_PATH", "resume_history.db")
 
 def init_db():
     conn = sqlite3.connect(DB_PATH)
@@ -24,67 +78,133 @@ def init_db():
         CREATE TABLE IF NOT EXISTS history (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             timestamp DATETIME,
+            user_email TEXT,
             job_description TEXT,
             match_score_genai INTEGER,
             match_score_backend INTEGER,
             data_json TEXT
         )
     ''')
+    # History predates per-user scoping; add the column in place for existing DBs.
+    if "user_email" not in {row[1] for row in cursor.execute("PRAGMA table_info(history)")}:
+        cursor.execute("ALTER TABLE history ADD COLUMN user_email TEXT")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_history_user ON history (user_email, timestamp DESC)")
+    # Defaults are per (user, variant). The original schema keyed only on variant,
+    # which meant every user shared one row and overwrote each other's resumes.
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS defaults (
-            id TEXT PRIMARY KEY,
+            user_email TEXT NOT NULL,
+            variant TEXT NOT NULL,
             filename TEXT,
-            text_content TEXT
+            text_content TEXT,
+            PRIMARY KEY (user_email, variant)
         )
     ''')
     conn.commit()
     conn.close()
+    _migrate_defaults_to_per_user()
+
+
+def _migrate_defaults_to_per_user():
+    """
+    Move any rows from the old single-tenant `defaults` table (PK `id`) aside.
+
+    The old rows cannot be attributed to a user, and guessing would hand one
+    person's resume to another — exactly the bug this migration exists to close.
+    They are preserved in `defaults_orphaned` for manual recovery and dropped from
+    the live table.
+    """
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    try:
+        columns = {row[1] for row in cursor.execute("PRAGMA table_info(defaults)")}
+        if "id" not in columns:
+            return  # already migrated
+
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS defaults_orphaned (
+                id TEXT, filename TEXT, text_content TEXT, archived_at TEXT
+            )
+        ''')
+        cursor.execute(
+            "INSERT INTO defaults_orphaned (id, filename, text_content, archived_at)"
+            " SELECT id, filename, text_content, ? FROM defaults",
+            (datetime.now().isoformat(),),
+        )
+        cursor.execute("DROP TABLE defaults")
+        cursor.execute('''
+            CREATE TABLE defaults (
+                user_email TEXT NOT NULL,
+                variant TEXT NOT NULL,
+                filename TEXT,
+                text_content TEXT,
+                PRIMARY KEY (user_email, variant)
+            )
+        ''')
+        conn.commit()
+        print("[Migration] Archived unattributed default resumes to defaults_orphaned.")
+    except Exception as e:
+        print(f"[Migration] defaults migration skipped: {e}")
+    finally:
+        conn.close()
 
 init_db()
 
 @app.post("/api/save-defaults")
 async def save_defaults(
+    user_email: str = Form(...),
     resume_genai: UploadFile = File(None),
     resume_backend: UploadFile = File(None)
 ):
+    """Store this user's default resumes. `user_email` scopes them to one account."""
+    if not user_email.strip():
+        raise HTTPException(status_code=400, detail="user_email is required.")
     try:
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
-        
-        if resume_genai:
-            content = extract_text_from_pdf(await resume_genai.read())
-            cursor.execute("INSERT OR REPLACE INTO defaults (id, filename, text_content) VALUES ('genai', ?, ?)", 
-                           (resume_genai.filename, content))
-        
-        if resume_backend:
-            content = extract_text_from_pdf(await resume_backend.read())
-            cursor.execute("INSERT OR REPLACE INTO defaults (id, filename, text_content) VALUES ('backend', ?, ?)", 
-                           (resume_backend.filename, content))
-        
+
+        for variant, upload in (("genai", resume_genai), ("backend", resume_backend)):
+            if not upload:
+                continue
+            content = extract_text_from_pdf(await upload.read())
+            cursor.execute(
+                "INSERT OR REPLACE INTO defaults (user_email, variant, filename, text_content)"
+                " VALUES (?, ?, ?, ?)",
+                (user_email, variant, upload.filename, content),
+            )
+
         conn.commit()
         conn.close()
         return {"status": "success"}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/get-defaults")
-async def get_defaults():
+async def get_defaults(user_email: str):
     try:
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
-        cursor.execute("SELECT id, filename FROM defaults")
+        cursor.execute("SELECT variant, filename FROM defaults WHERE user_email = ?", (user_email,))
         rows = cursor.fetchall()
         conn.close()
         return {row[0]: row[1] for row in rows}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# Allow all origins for dev
+# This service is internal — only the Node API should reach it. Credentials are
+# never used across this boundary, so "*" with credentials (which is invalid
+# anyway) is replaced by an explicit allowlist.
+_allowed_origins = [
+    o.strip() for o in os.environ.get("OPTIMIZER_ALLOWED_ORIGINS", "http://localhost:5000").split(",")
+    if o.strip()
+]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
+    allow_origins=_allowed_origins,
+    allow_credentials=False,
+    allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
 
@@ -142,49 +262,38 @@ Use this exact structure:
 
 @app.post("/api/optimize")
 async def optimize_resumes(
+    user_email: str = Form(...),
     resume_genai: UploadFile = File(None),
     resume_backend: UploadFile = File(None),
     job_description: str = Form(...)
 ):
-    # Ensure Groq Token is set
-    groq_api_key = os.environ.get("GROQ_API_KEY")
-    if not groq_api_key:
-        raise HTTPException(status_code=500, detail="GROQ_API_KEY is not set in .env")
-        
-    # Extract text or fetch defaults
+    # Extract text or fall back to this user's saved defaults
     genai_text = ""
     backend_text = ""
-    
+
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
-    # Gen AI Resume logic
-    if resume_genai:
-        if not resume_genai.filename.lower().endswith(".pdf"):
-            raise HTTPException(status_code=400, detail="Gen AI resume must be a PDF file.")
-        genai_text = extract_text_from_pdf(await resume_genai.read())
-    else:
-        cursor.execute("SELECT text_content FROM defaults WHERE id = 'genai'")
-        row = cursor.fetchone()
-        if row:
-            genai_text = row[0]
-        else:
-            raise HTTPException(status_code=400, detail="Gen AI Resume missing and no default found.")
+    async def resolve(upload, variant: str, label: str) -> str:
+        if upload:
+            if not upload.filename.lower().endswith(".pdf"):
+                raise HTTPException(status_code=400, detail=f"{label} resume must be a PDF file.")
+            return extract_text_from_pdf(await upload.read())
 
-    # Backend Resume logic
-    if resume_backend:
-        if not resume_backend.filename.lower().endswith(".pdf"):
-            raise HTTPException(status_code=400, detail="Backend resume must be a PDF file.")
-        backend_text = extract_text_from_pdf(await resume_backend.read())
-    else:
-        cursor.execute("SELECT text_content FROM defaults WHERE id = 'backend'")
+        cursor.execute(
+            "SELECT text_content FROM defaults WHERE user_email = ? AND variant = ?",
+            (user_email, variant),
+        )
         row = cursor.fetchone()
-        if row:
-            backend_text = row[0]
-        else:
-            raise HTTPException(status_code=400, detail="Backend Resume missing and no default found.")
-    
-    conn.close()
+        if not row:
+            raise HTTPException(status_code=400, detail=f"{label} resume missing and no default saved for this account.")
+        return row[0]
+
+    try:
+        genai_text = await resolve(resume_genai, "genai", "Gen AI")
+        backend_text = await resolve(resume_backend, "backend", "Backend")
+    finally:
+        conn.close()
 
     # Load and optimize templates to minimize token generation
     def minify_latex(text: str) -> str:
@@ -225,35 +334,11 @@ async def optimize_resumes(
 {job_description}
 """
     
-    from groq import Groq
-    
     try:
-        client = Groq(api_key=groq_api_key)
-        
-        # Using Llama 3 70B on Groq which supports incredibly fast token generation and JSON schema
-        response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT + "\n\nIMPORTANT: Your entire response must be a single raw JSON object. No markdown, no backticks, no explanation. Start with { and end with }."},
-                {"role": "user", "content": user_message}
-            ],
-            max_tokens=8000,
-            temperature=0.1,
-            response_format={"type": "json_object"}
+        parsed_json = complete_json(
+            SYSTEM_PROMPT + "\n\nIMPORTANT: Your entire response must be a single raw JSON object. No markdown, no backticks, no explanation. Start with { and end with }.",
+            user_message,
         )
-        
-        content = response.choices[0].message.content.strip()
-
-        # Clean up possible markdown wrappers if the model hallucinated any
-        if content.startswith("```json"):
-            content = content[7:]
-        if content.startswith("```"):
-            content = content[3:]
-        if content.endswith("```"):
-            content = content[:-3]
-            
-        content = content.strip()
-        parsed_json = json.loads(content)
 
         # Save to DB
         try:
@@ -267,23 +352,23 @@ async def optimize_resumes(
                 job_description,
                 parsed_json.get("resume_genai", {}).get("match_score", 0),
                 parsed_json.get("resume_backend", {}).get("match_score", 0),
-                content
+                json.dumps(parsed_json)
             ))
             conn.commit()
             conn.close()
         except Exception as db_err:
             print(f"Database error: {db_err}")
 
-        # Try to parse to validate it's proper JSON before returning to standard
         return parsed_json
 
-    except json.JSONDecodeError as decode_err:
-        raise HTTPException(status_code=500, detail=f"LLM returned invalid JSON. Raw output: {content}")
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"LLM Processing Failed: {str(e)}")
 
 class OptimizeForJobRequest(BaseModel):
     job_description: str
+    user_email: str
 
 @app.post("/api/optimize-for-job")
 async def optimize_for_job(req: OptimizeForJobRequest):
@@ -293,20 +378,19 @@ async def optimize_for_job(req: OptimizeForJobRequest):
     Returns match scores and compiled LaTeX for both resumes;
     caller picks the winner.
     """
-    groq_api_key = os.environ.get("GROQ_API_KEY")
-    if not groq_api_key:
-        raise HTTPException(status_code=500, detail="GROQ_API_KEY is not set in .env")
-
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    cursor.execute("SELECT id, text_content FROM defaults WHERE id IN ('genai', 'backend')")
+    cursor.execute(
+        "SELECT variant, text_content FROM defaults WHERE user_email = ? AND variant IN ('genai', 'backend')",
+        (req.user_email,),
+    )
     rows = {row[0]: row[1] for row in cursor.fetchall()}
     conn.close()
 
     if "genai" not in rows or "backend" not in rows:
         raise HTTPException(
             status_code=400,
-            detail="Default resumes not set. Please upload both resumes in the Resume Optimizer first."
+            detail="Default resumes not set for this account. Please upload both resumes in the Resume Optimizer first."
         )
 
     genai_text = rows["genai"]
@@ -346,25 +430,11 @@ async def optimize_for_job(req: OptimizeForJobRequest):
 {req.job_description}
 """
 
-    from groq import Groq
     try:
-        client = Groq(api_key=groq_api_key)
-        response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT + "\n\nIMPORTANT: Your entire response must be a single raw JSON object. No markdown, no backticks, no explanation. Start with { and end with }."},
-                {"role": "user", "content": user_message}
-            ],
-            max_tokens=8000,
-            temperature=0.1,
-            response_format={"type": "json_object"}
+        parsed_json = complete_json(
+            SYSTEM_PROMPT + "\n\nIMPORTANT: Your entire response must be a single raw JSON object. No markdown, no backticks, no explanation. Start with { and end with }.",
+            user_message,
         )
-        content = response.choices[0].message.content.strip()
-        if content.startswith("```json"): content = content[7:]
-        if content.startswith("```"): content = content[3:]
-        if content.endswith("```"): content = content[:-3]
-        content = content.strip()
-        parsed_json = json.loads(content)
 
         # Persist to history DB
         try:
@@ -378,7 +448,7 @@ async def optimize_for_job(req: OptimizeForJobRequest):
                 req.job_description,
                 parsed_json.get("resume_genai", {}).get("match_score", 0),
                 parsed_json.get("resume_backend", {}).get("match_score", 0),
-                content
+                json.dumps(parsed_json)
             ))
             conn.commit()
             conn.close()
@@ -386,8 +456,8 @@ async def optimize_for_job(req: OptimizeForJobRequest):
             print(f"Database error: {db_err}")
 
         return parsed_json
-    except json.JSONDecodeError:
-        raise HTTPException(status_code=500, detail=f"LLM returned invalid JSON. Raw output: {content}")
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"LLM Processing Failed: {str(e)}")
 
@@ -431,18 +501,31 @@ Omit any array you have no source material for — return it empty rather than f
 
 class ResumeJsonRequest(BaseModel):
     job_description: str
-    # Optional caller-supplied source material. When omitted we fall back to the
-    # saved default resumes; when neither exists we return a 400 with a clear detail.
+    # Optional caller-supplied source material. When omitted we fall back to this
+    # user's saved default resumes; when neither exists we return a 400.
     resume_text: Optional[str] = None
     profile_summary: Optional[str] = None
     variant: Optional[str] = None  # 'genai' | 'backend' — which default to prefer
+    user_email: Optional[str] = None
 
 
-def _load_default_resume_text(variant: Optional[str]) -> tuple[str, str]:
-    """Returns (text, source_label). Empty text when no defaults are saved."""
+def _load_default_resume_text(variant: Optional[str], user_email: Optional[str]) -> tuple[str, str]:
+    """
+    Returns (text, source_label) for one user's saved defaults.
+
+    Without the user_email filter this read returned whichever resume was uploaded
+    most recently by *any* user, so one person's CV could be generated from another
+    person's resume. An unattributed caller gets no defaults at all.
+    """
+    if not user_email:
+        return "", "none"
+
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    cursor.execute("SELECT id, text_content FROM defaults WHERE id IN ('genai', 'backend')")
+    cursor.execute(
+        "SELECT variant, text_content FROM defaults WHERE user_email = ? AND variant IN ('genai', 'backend')",
+        (user_email,),
+    )
     rows = {row[0]: row[1] for row in cursor.fetchall()}
     conn.close()
 
@@ -458,20 +541,16 @@ def _load_default_resume_text(variant: Optional[str]) -> tuple[str, str]:
 async def resume_json(req: ResumeJsonRequest):
     """
     Build a structured, job-matched resume as JSON. The caller renders it to PDF.
-    Works from caller-supplied resume text, the saved default resumes, or a profile
-    summary — whichever is available.
+    Works from caller-supplied resume text, the user's saved default resumes, or a
+    profile summary — whichever is available.
     """
-    groq_api_key = os.environ.get("GROQ_API_KEY")
-    if not groq_api_key:
-        raise HTTPException(status_code=500, detail="GROQ_API_KEY is not set in .env")
-
     if not req.job_description or not req.job_description.strip():
         raise HTTPException(status_code=400, detail="job_description is required.")
 
     source_text = (req.resume_text or "").strip()
     source_label = "caller"
     if not source_text:
-        source_text, source_label = _load_default_resume_text(req.variant)
+        source_text, source_label = _load_default_resume_text(req.variant, req.user_email)
 
     profile_summary = (req.profile_summary or "").strip()
 
@@ -494,31 +573,7 @@ async def resume_json(req: ResumeJsonRequest):
 {req.job_description}
 """
 
-    from groq import Groq
-    content = ""
-    try:
-        client = Groq(api_key=groq_api_key)
-        response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[
-                {"role": "system", "content": JSON_RESUME_SYSTEM_PROMPT},
-                {"role": "user", "content": user_message},
-            ],
-            max_tokens=8000,
-            temperature=0.1,
-            response_format={"type": "json_object"},
-        )
-        content = response.choices[0].message.content.strip()
-        if content.startswith("```json"): content = content[7:]
-        if content.startswith("```"): content = content[3:]
-        if content.endswith("```"): content = content[:-3]
-        parsed = json.loads(content.strip())
-    except json.JSONDecodeError:
-        raise HTTPException(status_code=502, detail=f"LLM returned invalid JSON. Raw output: {content[:500]}")
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=f"LLM processing failed: {str(e)}")
+    parsed = complete_json(JSON_RESUME_SYSTEM_PROMPT, user_message)
 
     if not isinstance(parsed.get("resume"), dict):
         raise HTTPException(status_code=502, detail="LLM response did not contain a 'resume' object.")
@@ -529,9 +584,10 @@ async def resume_json(req: ResumeJsonRequest):
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
         cursor.execute(
-            "INSERT INTO history (timestamp, job_description, match_score_genai, match_score_backend, data_json)"
-            " VALUES (?, ?, ?, ?, ?)",
-            (datetime.now().isoformat(), req.job_description, parsed.get("match_score", 0), 0, json.dumps(parsed)),
+            "INSERT INTO history (timestamp, user_email, job_description, match_score_genai, match_score_backend, data_json)"
+            " VALUES (?, ?, ?, ?, ?, ?)",
+            (datetime.now().isoformat(), req.user_email, req.job_description,
+             parsed.get("match_score", 0), 0, json.dumps(parsed)),
         )
         conn.commit()
         conn.close()
@@ -542,12 +598,17 @@ async def resume_json(req: ResumeJsonRequest):
 
 
 @app.get("/api/history")
-async def get_history():
+async def get_history(user_email: str):
+    """History is per-account — an unscoped read would expose every user's job
+    descriptions and generated resumes."""
     try:
         conn = sqlite3.connect(DB_PATH)
         conn.row_factory = sqlite3.Row
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM history ORDER BY timestamp DESC LIMIT 20")
+        cursor.execute(
+            "SELECT * FROM history WHERE user_email = ? ORDER BY timestamp DESC LIMIT 20",
+            (user_email,),
+        )
         rows = cursor.fetchall()
         conn.close()
         

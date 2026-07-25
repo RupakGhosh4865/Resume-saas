@@ -4,6 +4,5 @@ pydantic
 PyMuPDF
 python-multipart
 python-dotenv
-groq
+openai
 requests
-langchain-huggingface

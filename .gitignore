@@ -19,3 +19,7 @@ Thumbs.db
 # Optional IDE
 .vscode/
 .idea/
+
+# SQLite DB holds user resumes/history — never commit
+backend/resume_history.db
+backend/*.db
